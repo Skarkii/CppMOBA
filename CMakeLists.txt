@@ -42,6 +42,19 @@ if(WIN32 AND NOT MINGW)
     target_link_libraries(enet ws2_32 winmm)
 endif()
 
+# raylib: window, input and rendering for the client.
+if(MOBA_BUILD_CLIENT)
+    set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(BUILD_GAMES    OFF CACHE BOOL "" FORCE)
+    FetchContent_Declare(raylib
+        GIT_REPOSITORY https://github.com/raysan5/raylib.git
+        GIT_TAG        6.0
+        GIT_SHALLOW    TRUE
+        SYSTEM         # keeps our warning flags from firing on raylib.h
+    )
+    FetchContent_MakeAvailable(raylib)
+endif()
+
 # ---------------------------------------------------------------------------
 # Sources
 # ---------------------------------------------------------------------------
@@ -49,6 +62,7 @@ set(SHARED_SOURCES
     src/shared/net.cpp
     src/shared/net.hpp
     src/shared/serialize.hpp
+    src/shared/protocol.hpp
 )
 
 set(SERVER_SOURCES
@@ -58,6 +72,7 @@ set(SERVER_SOURCES
 set(CLIENT_SOURCES
     src/client/main.cpp
     src/client/game.cpp
+    src/client/player.cpp
 )
 
 function(moba_set_warnings target)
@@ -98,7 +113,7 @@ endif()
 if(MOBA_BUILD_CLIENT)
     add_executable(MOBA_client ${CLIENT_SOURCES})
     target_include_directories(MOBA_client PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/client)
-    target_link_libraries(MOBA_client PRIVATE MOBA::shared)
+    target_link_libraries(MOBA_client PRIVATE MOBA::shared raylib)
     target_compile_definitions(MOBA_client PRIVATE MOBA_CLIENT=1)
     moba_set_warnings(MOBA_client)
 endif()

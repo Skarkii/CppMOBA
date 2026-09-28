@@ -10,7 +10,15 @@ namespace protocol
 
     enum class MessageType : std::uint8_t
     {
-        Hello = 0,
-        Welcome,
+        // Handshake
+        Hello = 0, // C->
+        Welcome, // S -> C
+
+        // Client->Server
+        MoveCommand,
+
+        // Server->Client
+        MatchInfo,
+        PlayerState,
     };
 }

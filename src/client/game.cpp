@@ -4,10 +4,14 @@
 #include "serialize.hpp"
 #include "protocol.hpp"
 
-Game::Game() {
+
+Game::Game(uint64_t token) {
+	InitWindow(1280, 720, "MOBA");
+	m_token = token;
 }
 
 Game::~Game() {
+	CloseWindow();
 }
 
 void Game::Connect() {
@@ -29,8 +33,21 @@ void Game::WaitForServer() {
 }
 
 void Game::Run() {
-	while (m_running) {
+	while (m_running && !WindowShouldClose()) {
 		updateNetwork();
+
+		if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+			Vector2 mousePos = GetMousePosition();
+			moveCommand(mousePos);
+		}
+
+		BeginDrawing();
+		ClearBackground(RAYWHITE);
+		for (uint8_t i = 0; i < m_playerCount; i++) {
+			m_players[i].Draw();
+		}
+		DrawFPS(5, 5);
+		EndDrawing();
 	}
 }
 
@@ -41,8 +58,7 @@ void Game::updateNetwork() {
 				[&]([[maybe_unused]] const net::Connected& e) {},
 
 				[&]([[maybe_unused]] const net::Received& e) {
-					std::println("received {} bytes from on channel {}",
-						e.data.size(), static_cast<int>(e.channel));
+					//std::println("received {} bytes from on channel {}", e.data.size(), static_cast<int>(e.channel));
 					onMessage(e.data);
 				},
 
@@ -74,10 +90,40 @@ void Game::onMessage(const std::vector<std::byte>& data) {
 	switch (type)
 	{
 	case protocol::MessageType::Welcome:
-		if (!r.done())
-			break; 
-		std::println("Welcome Retrieved");
-		m_connectionState = ConnectionState::Joined;
+		{
+			uint8_t playerId;
+			r(playerId);
+			if (!r.done())
+				break; 
+			m_playerId = playerId;
+			std::println("Welcome Player {}", playerId);
+			m_connectionState = ConnectionState::Joined;
+		}
+		break;
+	case protocol::MessageType::MatchInfo:
+		{
+			uint8_t playerCount;
+			r(playerCount);
+			if (!r.done())
+				break; 
+			m_playerCount = playerCount;
+		}
+		break;
+	case protocol::MessageType::PlayerState:
+		{
+			std::array<Vector2, 10> positions;
+			for (uint8_t i = 0; i < m_playerCount; i++) {
+				Vector2 pos;
+				r(pos.x);
+				r(pos.y);
+				positions[i] = pos;
+			}
+			if (!r.done())
+				break;
+			for (uint8_t i = 0; i < m_playerCount; i++) {
+				m_players[i].SetPosition(positions[i]);
+			}
+		}
 		break;
 
 	default:
@@ -87,11 +133,10 @@ void Game::onMessage(const std::vector<std::byte>& data) {
 
 void Game::sendHello() {
 	net::Writer w;
-	const std::uint64_t token = 1001;
 
 	w(protocol::MessageType::Hello);
 	w(protocol::kVersion);
-	w(token);
+	w(m_token);
 
 	m_client.send(w.buffer, net::Channel::Reliable);
 	m_client.flush();
@@ -99,4 +144,14 @@ void Game::sendHello() {
 
 void Game::disconnect() {
 }
+
+void Game::moveCommand(const Vector2 pos) {
+	net::Writer w;
+	w(protocol::MessageType::MoveCommand);
+	w(pos.x);
+	w(pos.y);
+	m_client.send(w.buffer, net::Channel::Reliable);
+	m_client.flush();
+}
+
 
