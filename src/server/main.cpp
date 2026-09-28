@@ -10,64 +10,14 @@
 #include "serialize.hpp"
 #include "protocol.hpp"
 
-struct Vector2 {
-	float x;
-	float y;
-};
+#include "player.hpp"
+
+#include "champions.hpp"
 
 void onMessage(const std::vector<std::byte>& data, net::Server& server, const net::PeerId peer);
-enum class ConnectionState { Disconnected, Connected};
-
-class Player {
-public:
-	Player(uint64_t token) {
-		m_token = token;
-	}
-	~Player() {
-
-	}
-
-	[[nodiscard]]
-	uint64_t getToken() const {
-		return m_token;
-	}
-
-	[[nodiscard]]
-	Vector2 GetPosition() const {
-		return m_pos;
-	}
-
-	void SetPosition(const Vector2 newPos) {
-		m_pos = newPos;
-	}
-
-	void SetPeer(const net::PeerId id) {
-		m_peer = id;
-		m_connected = ConnectionState::Connected;
-	}
-
-	[[nodiscard]]
-	net::PeerId GetPeer() {
-		return m_peer;
-	}
-
-	[[nodiscard]]
-	bool IsConnected() {
-		return m_connected == ConnectionState::Connected;
-	}
-
-private:
-	Vector2 m_pos = { 0 };
-	uint64_t m_token;
-	net::PeerId m_peer;
-	ConnectionState m_connected = ConnectionState::Disconnected;
-
-};
-
-#include <unordered_map>
 
 const uint8_t playerCount = 2;
-std::array<Player, playerCount> players{ Player(100), Player(101) };
+std::array<Player, playerCount> players{ Player(100, champion::Id::Barbarian), Player(101, champion::Id::Ranger) };
 
 void broadcastState(net::Server& server) {
 	net::Writer w;
@@ -100,7 +50,15 @@ int main()
 	}
 	std::println("Listening on port {}", port);
 
+	using clock = std::chrono::steady_clock;
+
+	constexpr auto kTick = protocol::kTick;
+	constexpr float kTickSeconds = protocol::kTickSeconds;
+
+	auto next = clock::now();
+
 	while (true) {
+
 		for (auto& event : server.poll())
 		{
 			std::visit(net::overloaded{
@@ -118,8 +76,14 @@ int main()
 				}, event);
 		}
 
+		for (Player& p : players) {
+			p.Update(kTickSeconds);
+		}
+
 		broadcastState(server);
-		std::this_thread::sleep_for(std::chrono::milliseconds(16));
+
+		next += kTick;
+		std::this_thread::sleep_until(next);
 	}
 
 	return EXIT_SUCCESS;
@@ -159,7 +123,7 @@ void onMessage(const std::vector<std::byte>& data, net::Server& server, const ne
 			uint8_t amountOfPlayers = playerCount;
 			uint8_t playerId = playerCount;
 			for (uint8_t i = 0; i < playerCount; i++) {
-				if (players[i].getToken() == token) {
+				if (players[i].GetToken() == token) {
 					playerId = i;
 					break;
 				}
@@ -179,6 +143,9 @@ void onMessage(const std::vector<std::byte>& data, net::Server& server, const ne
 			net::Writer matchInfo;
 			matchInfo(protocol::MessageType::MatchInfo);
 			matchInfo(amountOfPlayers);
+			for (Player p : players) {
+				matchInfo(p.GetChampionId());
+			}
 			server.send(peer, welcome.buffer, net::Channel::Reliable);
 			server.send(peer, matchInfo.buffer, net::Channel::Reliable);
 			std::println("Player {} connected", playerId);
@@ -186,8 +153,8 @@ void onMessage(const std::vector<std::byte>& data, net::Server& server, const ne
 		break;
 	case protocol::MessageType::MoveCommand:
 		{
-			std::println("Moving player");
-			Vector2 newPos;
+			// std::println("Moving player");
+			Vector2 newPos{};
 			r(newPos.x);
 			r(newPos.y);
 			if (!r.done()) {
@@ -196,7 +163,7 @@ void onMessage(const std::vector<std::byte>& data, net::Server& server, const ne
 			}
 			for (Player& player : players) {
 				if (player.IsConnected() && player.GetPeer() == peer) {
-					player.SetPosition(newPos);
+					player.SetTargetPosition(newPos);
 					break;
 				}
 			}

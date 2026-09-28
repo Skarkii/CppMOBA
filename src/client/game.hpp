@@ -2,10 +2,13 @@
 
 #pragma once
 
+#include "champions.hpp"
 #include "net.hpp"
-#include <raylib.h>
 #include "player.hpp"
 #include <array>
+#include <raylib.h>
+#include "model.hpp"
+#include <unordered_map>
 
 enum class ConnectionState { Disconnected, Connecting, Joined };
 
@@ -26,6 +29,9 @@ private:
 	net::Library m_netLibrary;
 	net::Client  m_client;
 	ConnectionState m_connectionState = ConnectionState::Disconnected;
+	bool m_retrievedMatchInfo = false;
+
+	std::unordered_map
 
 	void updateNetwork();
 	void onMessage(const std::vector<std::byte>& data);

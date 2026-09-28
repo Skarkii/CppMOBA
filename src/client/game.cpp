@@ -20,10 +20,16 @@ void Game::Connect() {
 		std::println("Failed to connect to server {}:{}", m_hostServerName, m_hostServerPort);
 		// TODO: Handle failure to connect
 	}
-	std::println("Connected to server {}:{}", m_hostServerName, m_hostServerPort);
+	std::println("Connecting to server {}:{}", m_hostServerName, m_hostServerPort);
 	m_connectionState = ConnectionState::Connecting;
 
 	sendHello();
+
+	while (m_connectionState != ConnectionState::Joined || !m_retrievedMatchInfo) {
+		updateNetwork();
+	}
+
+	std::println("Connected and retrieved match info");
 }
 
 void Game::Prepare() {
@@ -96,22 +102,33 @@ void Game::onMessage(const std::vector<std::byte>& data) {
 			if (!r.done())
 				break; 
 			m_playerId = playerId;
-			std::println("Welcome Player {}", playerId);
+			//std::println("Handshake completed, playerID: {}", playerId);
 			m_connectionState = ConnectionState::Joined;
 		}
 		break;
 	case protocol::MessageType::MatchInfo:
 		{
+			if (m_retrievedMatchInfo)
+				break;
+
 			uint8_t playerCount;
 			r(playerCount);
+			std::array<champion::Id, 10> champIds{};
+			for (uint8_t i = 0; i < playerCount; i++) {
+				r(champIds[i]);
+			}
 			if (!r.done())
 				break; 
+			for (uint8_t i = 0; i < playerCount; i++) {
+				m_players[i].SetChampId(champIds[i]);
+			}
 			m_playerCount = playerCount;
+			m_retrievedMatchInfo = true;
 		}
 		break;
 	case protocol::MessageType::PlayerState:
 		{
-			std::array<Vector2, 10> positions;
+			std::array<Vector2, 10> positions{};
 			for (uint8_t i = 0; i < m_playerCount; i++) {
 				Vector2 pos;
 				r(pos.x);

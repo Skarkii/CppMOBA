@@ -1,5 +1,7 @@
 #include "player.hpp"
 
+#include <print>
+
 Player::Player()
 {
 }
@@ -16,4 +18,17 @@ void Player::Draw()
 void Player::SetPosition(Vector2 pos)
 {
 	m_position = pos;
+}
+
+void Player::SetChampId(champion::Id id) {
+	m_champId = id;
+	//std::println("Champion Set : {}", GetChampName());
+}
+
+champion::Id Player::GetChampId() const {
+	return m_champId;
+}
+
+std::string_view Player::GetChampName() const {
+	return champion::Get(m_champId).name;
 }

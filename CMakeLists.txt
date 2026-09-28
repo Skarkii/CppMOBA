@@ -63,10 +63,12 @@ set(SHARED_SOURCES
     src/shared/net.hpp
     src/shared/serialize.hpp
     src/shared/protocol.hpp
+    src/shared/champions.hpp
 )
 
 set(SERVER_SOURCES
     src/server/main.cpp
+    src/server/player.cpp
 )
 
 set(CLIENT_SOURCES
@@ -116,4 +118,10 @@ if(MOBA_BUILD_CLIENT)
     target_link_libraries(MOBA_client PRIVATE MOBA::shared raylib)
     target_compile_definitions(MOBA_client PRIVATE MOBA_CLIENT=1)
     moba_set_warnings(MOBA_client)
+
+    add_custom_command(TARGET MOBA_client POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_CURRENT_SOURCE_DIR}/assets
+            $<TARGET_FILE_DIR:MOBA_client>/assets
+	)
 endif()
