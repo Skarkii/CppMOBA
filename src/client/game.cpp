@@ -122,6 +122,7 @@ void Game::onMessage(const std::vector<std::byte>& data) {
 			for (uint8_t i = 0; i < playerCount; i++) {
 				m_players[i].SetChampId(champIds[i]);
 			}
+			m_players[m_playerId].SetSelf();
 			m_playerCount = playerCount;
 			m_retrievedMatchInfo = true;
 		}
