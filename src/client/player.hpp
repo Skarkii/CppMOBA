@@ -10,7 +10,9 @@ public:
 	Player();
 	~Player();
 	void Draw();
-	void SetPosition(Vector2 pos);
+	void DrawOverlay(Camera& cam) const;
+	void SetPosition(const Vector3 pos);
+	Vector3 GetPosition() const;
 	void SetChampId(champion::Id id);
 
 	[[nodiscard]]
@@ -23,8 +25,19 @@ public:
 	bool IsSelf() const;
 
 	void SetSelf();
+
+	void SetModel(const Model* model);
+
+	void SetHealth(const float health);
 private:
-	Vector2 m_position;
+	Vector3 m_position;
+	float m_rotation;
+	Vector3 m_scale;
+
+	float m_health;
+	float m_maxHealth;
+
 	champion::Id m_champId;
 	bool m_self = false;
+	const Model* m_model = nullptr;
 };

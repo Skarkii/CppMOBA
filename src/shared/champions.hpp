@@ -28,6 +28,7 @@ namespace champion
         float attackRange;     // units
         float attackDamage;
         float collisionRadius; // units
+        float attackSpeed;
     };
 
     // Everything that describes a champion.
@@ -49,31 +50,31 @@ namespace champion
             set(Id::Barbarian, {
                 .name = "Barbarian",
                 .stats = {.moveSpeed = 4.5f, .maxHealth = 650.f, .attackRange = 1.5f,
-                           .attackDamage = 60.f, .collisionRadius = 0.6f },
+                           .attackDamage = 60.f, .collisionRadius = 0.6f, .attackSpeed = 1.0f },
                 });
 
             set(Id::Knight, {
                 .name = "Knight",
                 .stats = {.moveSpeed = 4.5f, .maxHealth = 650.f, .attackRange = 1.5f,
-                           .attackDamage = 60.f, .collisionRadius = 0.6f },
+                           .attackDamage = 60.f, .collisionRadius = 0.6f, .attackSpeed = 1.0f },
                 });
 
             set(Id::Mage, {
                 .name = "Mage",
                 .stats = {.moveSpeed = 4.2f, .maxHealth = 480.f, .attackRange = 6.0f,
-                           .attackDamage = 45.f, .collisionRadius = 0.5f },
+                           .attackDamage = 45.f, .collisionRadius = 0.5f, .attackSpeed = 1.0f },
                 });
 
             set(Id::Ranger, {
                 .name = "Ranger",
-                .stats = {.moveSpeed = 10.5f, .maxHealth = 650.f, .attackRange = 1.5f,
-                           .attackDamage = 60.f, .collisionRadius = 0.6f },
+                .stats = {.moveSpeed = 10.5f, .maxHealth = 650.f, .attackRange = 7.5f,
+                           .attackDamage = 60.f, .collisionRadius = 0.6f, .attackSpeed = 1.0f },
                 });
 
             set(Id::Rogue, {
                 .name = "Rogue",
                 .stats = {.moveSpeed = 4.5f, .maxHealth = 650.f, .attackRange = 1.5f,
-                           .attackDamage = 60.f, .collisionRadius = 0.6f },
+                           .attackDamage = 60.f, .collisionRadius = 0.6f, .attackSpeed = 1.0f },
                 });
 
             return table;

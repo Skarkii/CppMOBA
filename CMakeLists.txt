@@ -4,7 +4,7 @@
 
 cmake_minimum_required(VERSION 3.25)
 
-project(MOBA LANGUAGES CXX)
+project(MOBA LANGUAGES C CXX)
 
 option(MOBA_BUILD_SERVER "Build the MOBA server" ON)
 option(MOBA_BUILD_CLIENT "Build the MOBA client" ON)
@@ -55,6 +55,29 @@ if(MOBA_BUILD_CLIENT)
     FetchContent_MakeAvailable(raylib)
 endif()
 
+# Lua 5.4 (built as a small static library) + sol2 (header-only C++ wrapper)
+FetchContent_Declare(lua
+    GIT_REPOSITORY https://github.com/lua/lua.git
+    GIT_TAG        v5.4.8
+    GIT_SHALLOW    TRUE)
+FetchContent_Declare(sol2
+    GIT_REPOSITORY https://github.com/ThePhD/sol2.git
+    GIT_TAG        v3.5.0
+    GIT_SHALLOW    TRUE
+    SOURCE_SUBDIR  do-not-configure)   # only need the headers, skip sol2's own CMake
+FetchContent_MakeAvailable(lua sol2)
+
+# The Lua repo has no CMake file, so build the library ourselves,
+# leaving out the standalone interpreter/compiler and test files.
+file(GLOB LUA_SOURCES ${lua_SOURCE_DIR}/*.c)
+list(FILTER LUA_SOURCES EXCLUDE REGEX "/(lua|luac|onelua|ltests)\\.c$")
+add_library(lua_static STATIC ${LUA_SOURCES})
+target_include_directories(lua_static SYSTEM PUBLIC ${lua_SOURCE_DIR})
+
+add_library(sol2_headers INTERFACE)
+target_include_directories(sol2_headers SYSTEM INTERFACE ${sol2_SOURCE_DIR}/include)
+target_link_libraries(sol2_headers INTERFACE lua_static)
+
 # ---------------------------------------------------------------------------
 # Sources
 # ---------------------------------------------------------------------------
@@ -95,7 +118,7 @@ endfunction()
 add_library(MOBA_shared STATIC ${SHARED_SOURCES})
 add_library(MOBA::shared ALIAS MOBA_shared)
 target_include_directories(MOBA_shared PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/shared)
-target_link_libraries(MOBA_shared PRIVATE enet)
+target_link_libraries(MOBA_shared PRIVATE enet PUBLIC sol2_headers)
 moba_set_warnings(MOBA_shared)
 
 # ---------------------------------------------------------------------------

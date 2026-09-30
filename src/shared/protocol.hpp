@@ -20,6 +20,7 @@ namespace protocol
 
         // Client->Server
         MoveCommand,
+        AttackCommand,
 
         // Server->Client
         MatchInfo,

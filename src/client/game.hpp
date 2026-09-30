@@ -8,6 +8,7 @@
 #include <array>
 #include <raylib.h>
 #include <unordered_map>
+#include <optional>
 
 enum class ConnectionState { Disconnected, Connecting, Joined };
 
@@ -35,11 +36,20 @@ private:
 	void sendHello();
 	void disconnect();
 
-	void moveCommand(const Vector2 pos);
-	Vector2 m_position = { 0 };
+	void moveCommand(const Vector3 pos);
+	void attackCommand(std::uint8_t targetId);
+	std::optional<Vector3> mouseToGround() const;
+	Vector3 m_position = { 0 };
+	float m_zoom;
+	Camera m_camera;
 
 	std::array<Player, 10> m_players = { };
 	int m_playerCount;
 
 	uint8_t m_playerId;
+
+	void loadModels();
+	std::unordered_map<champion::Id, Model> m_models;
+
+	std::optional<std::uint8_t> enemyUnderMouse() const;
 };

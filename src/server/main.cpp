@@ -17,15 +17,28 @@
 void onMessage(const std::vector<std::byte>& data, net::Server& server, const net::PeerId peer);
 
 const uint8_t playerCount = 2;
-std::array<Player, playerCount> players{ Player(100, champion::Id::Barbarian), Player(101, champion::Id::Ranger) };
+std::array<Player, playerCount> players{ Player(100, champion::Id::Barbarian, Team::Blue), Player(101, champion::Id::Ranger, Team::Red) };
+
+struct Projectile {
+	Vector3 position;
+	std::uint8_t caster;
+	std::uint8_t target;
+	float speed;
+	float damage;
+	bool done = false;
+};
+
+std::vector<Projectile> projectiles;
 
 void broadcastState(net::Server& server) {
 	net::Writer w;
 	w(protocol::MessageType::PlayerState);
 	for (Player& player : players) {
-		Vector2 pos = player.GetPosition();
+		Vector3 pos = player.GetPosition();
 		w(pos.x);
 		w(pos.y);
+		w(pos.z);
+		w(player.GetHealth());
 	}
 	server.broadcast(w.buffer, net::Channel::Unreliable);
 }
@@ -62,8 +75,8 @@ int main()
 		for (auto& event : server.poll())
 		{
 			std::visit(net::overloaded{
-				[&](const net::Connected& e) {
-					std::println("peer {} connected", e.peer);
+				[&]([[maybe_unused]] const net::Connected& e) {
+					// std::println("peer {} connected", e.peer);
 				},
 				[&](const net::Received& e) {
 					// std::println("received {} bytes from peer {} on channel {}",e.data.size(), e.peer, static_cast<int>(e.channel));
@@ -76,9 +89,39 @@ int main()
 				}, event);
 		}
 
-		for (Player& p : players) {
-			p.Update(kTickSeconds);
+		for (std::uint8_t i = 0; i < playerCount; i++) {
+			if (players[i].Update(kTickSeconds, players)) {
+				const Player& p = players[i];
+				projectiles.push_back({
+					.position = { p.GetPosition().x, 1.2f, p.GetPosition().z },
+					.caster = i,
+					.target = p.GetAttackTarget(),
+					.speed = 15.0f,
+					.damage = 10
+					});
+			}
 		}
+
+		for (Projectile& proj : projectiles) {
+			Player& target = players[proj.target];
+			const Vector3 goal = { target.GetPosition().x, 1.2f, target.GetPosition().z };
+
+			const float dx = goal.x - proj.position.x;
+			const float dz = goal.z - proj.position.z;
+			const float distance = std::sqrt(dx * dx + dz * dz);
+
+			const float step = proj.speed * kTickSeconds;
+
+			if (distance <= step) {
+				target.TakeDamage(proj.damage);
+				proj.done = true;
+			}
+
+			proj.position.x += dx / distance * step;
+			proj.position.z += dz / distance * step;
+		}
+
+		std::erase_if(projectiles, [](const Projectile& p) { return p.done; });
 
 		broadcastState(server);
 
@@ -154,9 +197,10 @@ void onMessage(const std::vector<std::byte>& data, net::Server& server, const ne
 	case protocol::MessageType::MoveCommand:
 		{
 			// std::println("Moving player");
-			Vector2 newPos{};
+			Vector3 newPos{};
 			r(newPos.x);
 			r(newPos.y);
+			r(newPos.z);
 			if (!r.done()) {
 				std::println("MoveCommand invalid message");
 				break;
@@ -164,6 +208,24 @@ void onMessage(const std::vector<std::byte>& data, net::Server& server, const ne
 			for (Player& player : players) {
 				if (player.IsConnected() && player.GetPeer() == peer) {
 					player.SetTargetPosition(newPos);
+					break;
+				}
+			}
+		}
+		break;
+	case protocol::MessageType::AttackCommand:
+		{
+			uint8_t targetId;
+			r(targetId);
+			if (!r.done()) {
+				std::println("AttackCommand invalid message");
+				break;
+			}
+			for (Player& player : players) {
+				if (player.IsConnected() && player.GetPeer() == peer) {
+					if (targetId >= playerCount || player.GetTeam() == players[targetId].GetTeam())
+						break;
+					player.SetAttackTarget(targetId);
 					break;
 				}
 			}
