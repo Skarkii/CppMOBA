@@ -5,10 +5,16 @@
 #include "champions.hpp"
 #include "net.hpp"
 #include "player.hpp"
+#include "hud.hpp"
 #include <array>
 #include <raylib.h>
 #include <unordered_map>
 #include <optional>
+#include "menu.hpp"
+
+#ifdef MOBA_DEBUG_OVERLAY
+#include "debug_overlay.hpp"
+#endif
 
 enum class ConnectionState { Disconnected, Connecting, Joined };
 
@@ -36,6 +42,7 @@ private:
 	void sendHello();
 	void disconnect();
 
+	void recallCommand();
 	void moveCommand(const Vector3 pos);
 	void attackCommand(std::uint8_t targetId);
 	std::optional<Vector3> mouseToGround() const;
@@ -47,9 +54,30 @@ private:
 	int m_playerCount;
 
 	uint8_t m_playerId;
+	bool m_showPlayerNames = false;
 
 	void loadModels();
 	std::unordered_map<champion::Id, Model> m_models;
 
 	std::optional<std::uint8_t> enemyUnderMouse() const;
+
+	float m_screenW = { 0.0f };
+	float m_screenH = { 0.0f };
+
+	HudView makeHudView() const;
+	Hud m_hud;
+	Menu m_menu;
+	Settings m_settings;
+
+	void UpdateSettings();
+
+#ifdef MOBA_DEBUG_OVERLAY
+	bool m_showDebug = true;
+	DebugOverlay m_debugOverlay;
+	DebugView m_debugView;
+	float m_statsTimer = 0.0f;
+	std::uint32_t m_lastTick = 0;
+	bool m_haveTick = false;
+#endif
+
 };

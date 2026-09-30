@@ -11,6 +11,12 @@ Game::Game(uint64_t token) {
 	SetConfigFlags(FLAG_VSYNC_HINT | FLAG_MSAA_4X_HINT);
 	InitWindow(1280, 720, "MOBA");
 	HideCursor();
+	SetExitKey(KEY_NULL);
+
+	m_screenW = static_cast<float>(GetScreenWidth());
+	m_screenH = static_cast<float>(GetScreenHeight());
+	m_hud.SetScreenSize(m_screenW, m_screenH);
+	m_menu.SetScreenSize(m_screenW, m_screenH);
 
 	m_zoom = 10.0f;
 
@@ -28,6 +34,8 @@ Game::~Game() {
 		UnloadModel(m.second);
 	}
 	m_models.clear();
+
+	m_hud.Unload();
 
 	CloseWindow();
 }
@@ -67,6 +75,7 @@ void Game::loadModels() {
 
 void Game::Prepare() {
 	loadModels();
+	m_hud.Load();
 }
 
 void Game::WaitForServer() {
@@ -107,21 +116,84 @@ std::optional<std::uint8_t> Game::enemyUnderMouse() const {
 	return best;
 }
 
+HudView Game::makeHudView() const {
+	const Player& self = m_players[m_playerId];
+	HudView view{};
+	view.championName = self.GetChampName();
+	view.health = self.GetHealth();
+	view.maxHealth = self.GetMaxHealth();
+	view.stats = champion::GetStats(self.GetChampId());
+	view.mana = self.GetMana();
+	view.maxMana = self.GetMaxMana();
+	return view;
+}
+
+void Game::UpdateSettings() {
+	if (IsWindowState(FLAG_BORDERLESS_WINDOWED_MODE) != m_settings.fullscreen) {
+		ToggleBorderlessWindowed();
+		m_screenW = static_cast<float>(GetScreenWidth());
+		m_screenH = static_cast<float>(GetScreenHeight());
+		m_hud.SetScreenSize(m_screenW, m_screenH);
+		m_menu.SetScreenSize(m_screenW, m_screenH);
+	}
+
+	if (m_settings.vsync) {
+		SetWindowState(FLAG_VSYNC_HINT);
+	}
+	else {
+		ClearWindowState(FLAG_VSYNC_HINT);
+	}
+
+	SetTargetFPS(m_settings.fpsCap);
+
+	SetMasterVolume(m_settings.masterVolume);
+
+	m_showPlayerNames = m_settings.showPlayerNames;
+
+	//Keybinds remaining
+}
+
 void Game::Run() {
 	while (m_running && !WindowShouldClose()) {
 		updateNetwork();
 
-		const std::optional<std::uint8_t> hovered = enemyUnderMouse();
+#ifdef MOBA_DEBUG_OVERLAY
+		if (IsKeyPressed(KEY_F3))
+			m_showDebug = !m_showDebug;
 
-		if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
-			if (hovered)
-				attackCommand(*hovered);
-			else if (auto point = mouseToGround())
-				moveCommand(*point);
+		m_debugView.fps = GetFPS();
+		m_debugView.frameMs = GetFrameTime() * 1000.0f;
+
+		m_statsTimer += GetFrameTime();
+		if (m_statsTimer >= 1.0f) {
+			m_debugView.net = m_client.GetStats();
+			m_debugView.bytesPerSecondIn = static_cast<float>(m_debugView.net.bytesReceived) / m_statsTimer;
+			m_debugView.bytesPerSecondOut = static_cast<float>(m_debugView.net.bytesSent) / m_statsTimer;
+			m_statsTimer = 0.0f;
 		}
+#endif
+
+		const std::optional<std::uint8_t> hovered = enemyUnderMouse();
+		float wheel = 0.0f;
+
+		if (IsKeyPressed(KEY_ESCAPE) && !m_menu.IsCapturingKey())
+			m_menu.Toggle();
+
+		if (!m_menu.IsOpen()) {
+			if (IsKeyPressed(KEY_B)) {
+				recallCommand();
+			}
+
+			if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
+				if (hovered)
+					attackCommand(*hovered);
+				else if (auto point = mouseToGround())
+					moveCommand(*point);
+			}
 
 
-		const float wheel = GetMouseWheelMove();
+			wheel = GetMouseWheelMove();
+		}
 
 		if (wheel != 0.0f) {
 			m_zoom -= wheel * 0.1f;
@@ -141,11 +213,13 @@ void Game::Run() {
 		BeginMode3D(m_camera);	
 
 		DrawGrid(40, 1.0f);
-		if (IsKeyDown(KEY_X)) {
-			const Vector3 pos = m_players[m_playerId].GetPosition();
-			const float range = champion::GetStats(m_players[m_playerId].GetChampId()).attackRange;
+		if (!m_menu.IsOpen()) {
+			if (IsKeyDown(KEY_X)) {
+				const Vector3 pos = m_players[m_playerId].GetPosition();
+				const float range = champion::GetStats(m_players[m_playerId].GetChampId()).attackRange;
 
-			DrawCircle3D({ pos.x, 0.02f, pos.z }, range, { 1.0f, 0.0f, 0.0f }, 90.0f, DARKGRAY);
+				DrawCircle3D({ pos.x, 0.02f, pos.z }, range, { 1.0f, 0.0f, 0.0f }, 90.0f, DARKGRAY);
+			}
 		}
 
 		for (uint8_t i = 0; i < m_playerCount; i++) {
@@ -156,16 +230,41 @@ void Game::Run() {
 		EndMode3D();
 
 		for (uint8_t i = 0; i < m_playerCount; i++) {
-			m_players[i].DrawOverlay(m_camera);
+			m_players[i].DrawOverlay(m_camera, m_showPlayerNames);
 		}
 
 		const Vector2 m = GetMousePosition();
 		const Color color = hovered ? RED : WHITE;
 
+		#ifdef MOBA_DEBUG_OVERLAY
+		if (m_showDebug)
+			m_debugOverlay.Draw(m_debugView);
+		#endif
+
+		m_hud.Draw(makeHudView());
+
+		if (m_menu.IsOpen()) {
+			MenuAction act = m_menu.Update(m_settings);
+
+			if (m_menu.HasSettingsChanged()) {
+				UpdateSettings();
+				m_menu.ResetSettingsChanged();
+			}
+
+			switch (act) {
+			case MenuAction::Exit:
+				m_running = false;
+				break;
+			case MenuAction::Resume:
+				m_menu.Toggle();
+				break;
+			}
+
+		}
+
 		DrawTriangle(m, { m.x, m.y + 18.0f }, { m.x + 12.0f, m.y + 13.0f }, color);
 		DrawTriangleLines(m, { m.x, m.y + 18.0f }, { m.x + 12.0f, m.y + 13.0f }, BLACK);
 
-		DrawFPS(5, 5);
 		EndDrawing();
 	}
 }
@@ -212,10 +311,11 @@ void Game::onMessage(const std::vector<std::byte>& data) {
 		{
 			uint8_t playerId;
 			r(playerId);
-			if (!r.done())
+			if (!r.done()) {
+				std::println("{} rejected: read {} of {} bytes", protocol::ToString(type), r.pos, data.size());
 				break; 
+			}
 			m_playerId = playerId;
-			//std::println("Handshake completed, playerID: {}", playerId);
 			m_connectionState = ConnectionState::Joined;
 		}
 		break;
@@ -227,13 +327,30 @@ void Game::onMessage(const std::vector<std::byte>& data) {
 			uint8_t playerCount;
 			r(playerCount);
 			std::array<champion::Id, 10> champIds{};
+			std::array<std::string, 10> names;
+
 			for (uint8_t i = 0; i < playerCount; i++) {
 				r(champIds[i]);
+
+				uint16_t playerNameLength;
+				r(playerNameLength);
+				if (playerNameLength > protocol::maximumNameLength) {
+					std::println("Retrieved player with name over limit, got: {} - maximum: {}", playerNameLength, protocol::maximumNameLength);
+					break;
+				}
+				for (size_t j = 0; j < playerNameLength; j++) {
+					char c;
+					r(c);
+					names[i] += c;
+				}
 			}
-			if (!r.done())
+			if (!r.done()) {
+				std::println("{} rejected: read {} of {} bytes", protocol::ToString(type), r.pos, data.size());
 				break; 
+			}
 			for (uint8_t i = 0; i < playerCount; i++) {
 				m_players[i].SetChampId(champIds[i]);
+				m_players[i].SetPlayerName(names[i]);
 			}
 			m_players[m_playerId].SetSelf();
 			m_playerCount = playerCount;
@@ -244,6 +361,9 @@ void Game::onMessage(const std::vector<std::byte>& data) {
 		{
 			std::array<Vector3, 10> positions{};
 			std::array<float, 10> health{};
+			std::array<float, 10> mana{};
+			std::uint32_t tick{};
+			r(tick);
 			for (uint8_t i = 0; i < m_playerCount; i++) {
 				Vector3 pos;
 				r(pos.x);
@@ -251,12 +371,24 @@ void Game::onMessage(const std::vector<std::byte>& data) {
 				r(pos.z);
 				positions[i] = pos;
 				r(health[i]);
+				r(mana[i]);
 			}
-			if (!r.done())
-				break;
+			if (!r.done()) {
+				std::println("{} rejected: read {} of {} bytes", protocol::ToString(type), r.pos, data.size());
+				break; 
+			}
+#ifdef MOBA_DEBUG_OVERLAY
+			if (m_haveTick && tick > m_lastTick + 1)
+				m_debugView.snapshotsMissed += tick - m_lastTick - 1;
+			m_debugView.snapshotsReceived++;
+			m_debugView.serverTick = tick;
+			m_lastTick = tick;
+			m_haveTick = true;
+#endif
 			for (uint8_t i = 0; i < m_playerCount; i++) {
 				m_players[i].SetPosition(positions[i]);
 				m_players[i].SetHealth(health[i]);
+				m_players[i].SetMana(mana[i]);
 			}
 		}
 		break;
@@ -278,6 +410,13 @@ void Game::sendHello() {
 }
 
 void Game::disconnect() {
+}
+
+void Game::recallCommand() {
+	net::Writer w;
+	w(protocol::MessageType::RecallCommand);
+	m_client.send(w.buffer, net::Channel::Reliable);
+	m_client.flush();
 }
 
 void Game::moveCommand(const Vector3 pos) {

@@ -13,13 +13,13 @@ struct Vector3 {
 };
 
 enum class ConnectionState { Disconnected, Connected};
-enum class Order { Idle, MoveTo, Attack };
+enum class Order { Idle, MoveTo, Attack, Recalling };
 
 enum class Team : uint8_t { Blue, Red } ;
 
 class Player {
 public:
-	Player(uint64_t token, champion::Id champId, Team team);
+	Player(uint64_t token, std::string name, champion::Id champId, Team team);
 	~Player();
 
 	[[nodiscard]]
@@ -37,7 +37,11 @@ public:
 
 	void SetPeer(const net::PeerId id);
 
+	[[nodiscard]]
 	float GetHealth() const;
+
+	[[nodiscard]]
+	float GetMana() const;
 
 	[[nodiscard]]
 	net::PeerId GetPeer() const;
@@ -45,20 +49,33 @@ public:
 	[[nodiscard]]
 	bool IsConnected() const;
 
-
+	[[nodiscard]]
 	bool Update(const float dt, std::span<Player> players);
 
+	[[nodiscard]]
 	Team GetTeam() const;
 
 	void TakeDamage(float amount);
 
+	[[nodiscard]]
 	uint8_t GetAttackTarget() const;
+
+	void SetForcePosition(const Vector3 pos);
+
+	void Recall();
+
+	[[nodiscard]]
+	std::string_view GetName() const;
 private:
+	std::string m_name;
 	Vector3 m_pos = { 0 };
 	Vector3 m_pos_goal = { 0 };
 
 	float m_health;
 	float m_maxHealth;
+
+	float m_mana;
+	float m_maxMana;
 
 	float m_rotation = 0.0f;
 	champion::Id m_champId;
@@ -67,6 +84,7 @@ private:
 	net::PeerId m_peer;
 	Order m_order = Order::Idle;
 	float m_attackCooldown = 0.0f;
+	float m_recallTimer = 3.0f;
 	Team m_team;
 	
 	ConnectionState m_connected = ConnectionState::Disconnected;
@@ -74,5 +92,7 @@ private:
 	uint8_t m_attackTarget;
 
 	bool moveTo(const Vector3 goal, const float dt);
-	bool inRangeOfPlayer(Player other) const;
+
+	[[nodiscard]]
+	bool inRangeOfPlayer(const Player& other) const;
 };

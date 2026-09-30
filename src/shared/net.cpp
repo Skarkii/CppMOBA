@@ -12,23 +12,20 @@ namespace net
     {
         constexpr auto kChannelCount = static_cast<std::size_t>(Channel::Count);
 
-        ENetPacket* makePacket(std::span<const std::byte> data, Channel channel)
-        {
+        ENetPacket* makePacket(std::span<const std::byte> data, Channel channel) {
             const enet_uint32 flags = channel == Channel::Reliable
                 ? static_cast<enet_uint32>(ENET_PACKET_FLAG_RELIABLE)
                 : 0u; // unreliable + sequenced
             return enet_packet_create(data.data(), data.size(), flags);
         }
 
-        void sendPacket(ENetPeer* peer, std::span<const std::byte> data, Channel channel)
-        {
+        void sendPacket(ENetPeer* peer, std::span<const std::byte> data, Channel channel) {
             ENetPacket* packet = makePacket(data, channel);
             if (enet_peer_send(peer, static_cast<enet_uint8>(channel), packet) < 0)
                 enet_packet_destroy(packet); // ENet only takes ownership on success
         }
 
-        std::vector<Event> collectEvents(ENetHost* host)
-        {
+        std::vector<Event> collectEvents(ENetHost* host) {
             std::vector<Event> events;
             if (!host)
                 return events;
@@ -69,8 +66,7 @@ namespace net
     // ---- Library ----------------------------------------------------------
     Library::Library() : m_ok(enet_initialize() == 0) {}
 
-    Library::~Library()
-    {
+    Library::~Library() {
         if (m_ok)
             enet_deinitialize();
     }
@@ -78,8 +74,7 @@ namespace net
     // ---- Server -----------------------------------------------------------
     Server::~Server() { stop(); }
 
-    bool Server::start(std::uint16_t port, std::size_t maxClients)
-    {
+    bool Server::start(std::uint16_t port, std::size_t maxClients) {
         stop();
 
         ENetAddress address{};
@@ -90,8 +85,7 @@ namespace net
         return m_host != nullptr;
     }
 
-    void Server::stop()
-    {
+    void Server::stop() {
         if (!m_host)
             return;
 
@@ -107,8 +101,7 @@ namespace net
 
     std::vector<Event> Server::poll() { return collectEvents(m_host); }
 
-    void Server::send(PeerId peer, std::span<const std::byte> data, Channel channel)
-    {
+    void Server::send(PeerId peer, std::span<const std::byte> data, Channel channel) {
         if (!m_host || peer >= m_host->peerCount)
             return;
 
@@ -117,20 +110,17 @@ namespace net
             sendPacket(&p, data, channel);
     }
 
-    void Server::broadcast(std::span<const std::byte> data, Channel channel)
-    {
+    void Server::broadcast(std::span<const std::byte> data, Channel channel) {
         if (m_host)
             enet_host_broadcast(m_host, static_cast<enet_uint8>(channel), makePacket(data, channel));
     }
 
-    void Server::disconnect(PeerId peer)
-    {
+    void Server::disconnect(PeerId peer) {
         if (m_host && peer < m_host->peerCount)
             enet_peer_disconnect(&m_host->peers[peer], 0);
     }
 
-    void Server::flush()
-    {
+    void Server::flush() {
         if (m_host)
             enet_host_flush(m_host);
     }
@@ -138,8 +128,7 @@ namespace net
     // ---- Client -----------------------------------------------------------
     Client::~Client() { disconnect(); }
 
-    bool Client::connect(const std::string& host, std::uint16_t port, std::uint32_t timeoutMs)
-    {
+    bool Client::connect(const std::string& host, std::uint16_t port, std::uint32_t timeoutMs) {
         disconnect();
 
         m_host = enet_host_create(nullptr, 1, kChannelCount, 0, 0);
@@ -171,8 +160,7 @@ namespace net
         return false;
     }
 
-    void Client::disconnect()
-    {
+    void Client::disconnect() {
         if (m_server)
         {
             // Tell the server, then wait briefly for the acknowledgement.
@@ -201,8 +189,7 @@ namespace net
         }
     }
 
-    std::vector<Event> Client::poll()
-    {
+    std::vector<Event> Client::poll() {
         auto events = collectEvents(m_host);
         for (const auto& e : events)
         {
@@ -212,15 +199,32 @@ namespace net
         return events;
     }
 
-    void Client::send(std::span<const std::byte> data, Channel channel)
-    {
+    void Client::send(std::span<const std::byte> data, Channel channel) {
         if (m_server)
             sendPacket(m_server, data, channel);
     }
 
-    void Client::flush()
-    {
+    void Client::flush() {
         if (m_host)
             enet_host_flush(m_host);
+    }
+
+    Stats Client::GetStats() {
+        Stats stats;
+        if (m_server)
+        {
+            stats.pingMs = m_server->roundTripTime;
+            stats.pingVarianceMs = m_server->roundTripTimeVariance;
+            stats.packetLoss = static_cast<float>(m_server->packetLoss) /
+                static_cast<float>(ENET_PEER_PACKET_LOSS_SCALE);
+        }
+        if (m_host)
+        {
+            stats.bytesSent = m_host->totalSentData;
+            stats.bytesReceived = m_host->totalReceivedData;
+            m_host->totalSentData = 0;      // ENet expects the user to reset these
+            m_host->totalReceivedData = 0;
+        }
+        return stats;
     }
 }

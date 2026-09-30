@@ -9,6 +9,8 @@ project(MOBA LANGUAGES C CXX)
 option(MOBA_BUILD_SERVER "Build the MOBA server" ON)
 option(MOBA_BUILD_CLIENT "Build the MOBA client" ON)
 
+option(MOBA_DEBUG_OVERLAY "Include the debug overlay in the client" OFF)
+
 if(NOT MOBA_BUILD_SERVER AND NOT MOBA_BUILD_CLIENT)
     message(FATAL_ERROR "Nothing to build: enable MOBA_BUILD_SERVER and/or MOBA_BUILD_CLIENT")
 endif()
@@ -98,6 +100,9 @@ set(CLIENT_SOURCES
     src/client/main.cpp
     src/client/game.cpp
     src/client/player.cpp
+    src/client/hud.cpp
+    src/client/debug_overlay.cpp
+    src/client/menu.cpp
 )
 
 function(moba_set_warnings target)
@@ -140,6 +145,11 @@ if(MOBA_BUILD_CLIENT)
     target_include_directories(MOBA_client PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/client)
     target_link_libraries(MOBA_client PRIVATE MOBA::shared raylib)
     target_compile_definitions(MOBA_client PRIVATE MOBA_CLIENT=1)
+
+    if(MOBA_DEBUG_OVERLAY)
+		target_compile_definitions(MOBA_client PRIVATE MOBA_DEBUG_OVERLAY)
+	endif()
+
     moba_set_warnings(MOBA_client)
 
     add_custom_command(TARGET MOBA_client POST_BUILD

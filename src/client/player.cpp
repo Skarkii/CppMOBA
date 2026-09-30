@@ -8,6 +8,7 @@ Player::Player() {
 	m_scale = { 1, 1, 1 };
 
 	m_health = m_maxHealth = 0.0f; 
+	m_mana = m_maxMana = 0.0f; 
 }
 
 Player::~Player()
@@ -37,7 +38,7 @@ void Player::Draw() {
 	}
 }
 
-void Player::DrawOverlay(Camera& cam) const {
+void Player::DrawOverlay(Camera& cam, bool showPlayerNames) const {
 	const Vector3 head = { m_position.x, m_position.y + 2.8f, m_position.z };
 	const Vector2 screen = GetWorldToScreen(head, cam);
 
@@ -53,7 +54,8 @@ void Player::DrawOverlay(Camera& cam) const {
 	DrawRectangleRec({ barX, barY, barWidth * fraction, barHeight }, fill);
 	DrawRectangleLinesEx({ barX, barY, barWidth, barHeight }, 1.0f, BLACK);
 
-	const char* name = GetChampName().data();
+	const char* name = showPlayerNames ? GetPlayerName().data() : GetChampName().data();
+
 	constexpr int fontSize = 14;
 	const int textWidth = MeasureText(name, fontSize);
 	DrawText(name, static_cast<int>(screen.x) - textWidth / 2,
@@ -78,6 +80,7 @@ void Player::SetChampId(champion::Id id) {
 	m_champId = id;
 	//std::println("Champion Set : {}", GetChampName());
 	m_health = m_maxHealth = champion::GetStats(id).maxHealth;
+	m_mana = m_maxMana = champion::GetStats(id).maxMana;
 }
 
 champion::Id Player::GetChampId() const {
@@ -102,4 +105,32 @@ void Player::SetModel(const Model* model) {
 
 void Player::SetHealth(const float health) {
 	m_health = health;
+}
+
+void Player::SetMana(const float mana) {
+	m_mana = mana;
+}
+
+void Player::SetPlayerName(std::string name) {
+	m_name = name;
+}
+
+std::string_view Player::GetPlayerName() const {
+	return m_name;
+}
+
+float Player::GetHealth() const {
+	return m_health;
+}
+
+float Player::GetMana() const {
+	return m_mana;
+}
+
+float Player::GetMaxHealth() const {
+	return m_maxHealth;
+}
+
+float Player::GetMaxMana() const {
+	return m_maxMana;
 }

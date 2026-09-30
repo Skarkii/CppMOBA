@@ -17,7 +17,7 @@
 void onMessage(const std::vector<std::byte>& data, net::Server& server, const net::PeerId peer);
 
 const uint8_t playerCount = 2;
-std::array<Player, playerCount> players{ Player(100, champion::Id::Barbarian, Team::Blue), Player(101, champion::Id::Ranger, Team::Red) };
+std::array<Player, playerCount> players{ Player(100, "Abc", champion::Id::Barbarian, Team::Blue), Player(101, "def", champion::Id::Ranger, Team::Red)};
 
 struct Projectile {
 	Vector3 position;
@@ -30,15 +30,17 @@ struct Projectile {
 
 std::vector<Projectile> projectiles;
 
-void broadcastState(net::Server& server) {
+void broadcastState(net::Server& server, std::uint32_t tick) {
 	net::Writer w;
 	w(protocol::MessageType::PlayerState);
+	w(tick);
 	for (Player& player : players) {
 		Vector3 pos = player.GetPosition();
 		w(pos.x);
 		w(pos.y);
 		w(pos.z);
 		w(player.GetHealth());
+		w(player.GetMana());
 	}
 	server.broadcast(w.buffer, net::Channel::Unreliable);
 }
@@ -68,9 +70,12 @@ int main()
 	constexpr auto kTick = protocol::kTick;
 	constexpr float kTickSeconds = protocol::kTickSeconds;
 
+	std::uint32_t tick = 0;
+
 	auto next = clock::now();
 
 	while (true) {
+		tick += 1;
 
 		for (auto& event : server.poll())
 		{
@@ -123,7 +128,7 @@ int main()
 
 		std::erase_if(projectiles, [](const Projectile& p) { return p.done; });
 
-		broadcastState(server);
+		broadcastState(server, tick);
 
 		next += kTick;
 		std::this_thread::sleep_until(next);
@@ -154,8 +159,11 @@ void onMessage(const std::vector<std::byte>& data, net::Server& server, const ne
 			uint64_t token;
 			r(kver);
 			r(token);
-			if (!r.done())
+
+			if (!r.done()) {
+				std::println("{} rejected: read {} of {} bytes", protocol::ToString(type), r.pos, data.size());
 				break; 
+			}
 
 			if (kver != protocol::kVersion) {
 				server.disconnect(peer);
@@ -186,8 +194,12 @@ void onMessage(const std::vector<std::byte>& data, net::Server& server, const ne
 			net::Writer matchInfo;
 			matchInfo(protocol::MessageType::MatchInfo);
 			matchInfo(amountOfPlayers);
-			for (Player p : players) {
-				matchInfo(p.GetChampionId());
+			for (uint8_t i = 0; i < amountOfPlayers; i++) {
+				matchInfo(players[i].GetChampionId());
+				matchInfo(static_cast<std::uint16_t>(players[i].GetName().size()));
+				for (size_t j = 0; j < players[i].GetName().size(); j++) {
+					matchInfo(players[i].GetName()[j]);
+				}
 			}
 			server.send(peer, welcome.buffer, net::Channel::Reliable);
 			server.send(peer, matchInfo.buffer, net::Channel::Reliable);
@@ -202,8 +214,8 @@ void onMessage(const std::vector<std::byte>& data, net::Server& server, const ne
 			r(newPos.y);
 			r(newPos.z);
 			if (!r.done()) {
-				std::println("MoveCommand invalid message");
-				break;
+				std::println("{} rejected: read {} of {} bytes", protocol::ToString(type), r.pos, data.size());
+				break; 
 			}
 			for (Player& player : players) {
 				if (player.IsConnected() && player.GetPeer() == peer) {
@@ -218,8 +230,8 @@ void onMessage(const std::vector<std::byte>& data, net::Server& server, const ne
 			uint8_t targetId;
 			r(targetId);
 			if (!r.done()) {
-				std::println("AttackCommand invalid message");
-				break;
+				std::println("{} rejected: read {} of {} bytes", protocol::ToString(type), r.pos, data.size());
+				break; 
 			}
 			for (Player& player : players) {
 				if (player.IsConnected() && player.GetPeer() == peer) {
@@ -231,6 +243,18 @@ void onMessage(const std::vector<std::byte>& data, net::Server& server, const ne
 			}
 		}
 		break;
+	case protocol::MessageType::RecallCommand:
+		{
+			if (!r.done()) {
+				std::println("{} rejected: read {} of {} bytes", protocol::ToString(type), r.pos, data.size());
+				break; 
+			}
+			for (Player& player : players) {
+				if (player.IsConnected() && player.GetPeer() == peer) {
+					player.Recall();
+				}
+			}
+		}
 
 	default:
 		break;

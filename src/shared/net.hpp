@@ -31,6 +31,16 @@ namespace net
 
     using Event = std::variant<Connected, Disconnected, Received>;
 
+    // Connection statistics, for debug overlays.
+    struct Stats
+    {
+        std::uint32_t pingMs = 0;         // mean round-trip time
+        std::uint32_t pingVarianceMs = 0; // how much the ping jitters
+        float packetLoss = 0.0f;          // 0..1, measured on reliable packets
+        std::uint32_t bytesSent = 0;      // since the last GetStats() call
+        std::uint32_t bytesReceived = 0;
+    };
+
     // Helper for std::visit with several lambdas.
     template <class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
 
@@ -95,6 +105,9 @@ namespace net
 
         void send(std::span<const std::byte> data, Channel channel);
         void flush();
+
+        // Returns current stats and resets the byte counters.
+        Stats GetStats();
 
     private:
         _ENetHost* m_host = nullptr;

@@ -3,8 +3,9 @@
 #include <cmath>
 #include <print>
 
-Player::Player(uint64_t token, champion::Id champId, Team team) {
+Player::Player(uint64_t token, std::string name, champion::Id champId, Team team) {
 	m_token = token;
+	m_name = name;
 
 	m_champId = champId;
 	m_stats = champion::Get(champId).stats;
@@ -12,6 +13,7 @@ Player::Player(uint64_t token, champion::Id champId, Team team) {
 	m_team = team;
 
 	m_health = m_maxHealth = m_stats.maxHealth;
+	m_mana = m_maxMana = m_stats.maxMana;
 }
 
 Player::~Player() {
@@ -68,6 +70,10 @@ float Player::GetHealth() const {
 	return m_health;
 }
 
+float Player::GetMana() const {
+	return m_mana;
+}
+
 
 net::PeerId Player::GetPeer() const {
 	return m_peer;
@@ -77,12 +83,12 @@ bool Player::IsConnected() const {
 	return m_connected == ConnectionState::Connected;
 }
 
-bool Player::inRangeOfPlayer(Player other) const {
+bool Player::inRangeOfPlayer(const Player& other) const {
 	Vector3 otherPos = other.GetPosition();
 	const float dx = otherPos.x - m_pos.x;
 	const float dz = otherPos.z - m_pos.z;
 
-	return dx * dx + dz * dz <= m_stats.attackRange * m_stats.attackRange;
+	return (dx * dx + dz * dz) <= (m_stats.attackRange * m_stats.attackRange);
 }
 
 bool Player::Update(const float dt, std::span<Player> players) {
@@ -97,13 +103,20 @@ bool Player::Update(const float dt, std::span<Player> players) {
 			m_order = Order::Idle;
 		break;
 	case Order::Attack:
-		if (inRangeOfPlayer(players[m_attackTarget]) && m_attackCooldown == 0.0f) {
+		if (!inRangeOfPlayer(players[m_attackTarget])) {
+			moveTo(players[m_attackTarget].GetPosition(), dt);
+		}
+		else if(m_attackCooldown == 0.0f) {
 			m_attackCooldown = m_stats.attackSpeed;
 			attacked = true;
-			m_order = Order::Idle;
 		}
-		else {
-			moveTo(players[m_attackTarget].GetPosition(), dt);
+		break;
+	case Order::Recalling:
+		m_recallTimer -= dt;
+		if (std::max(0.0f, m_recallTimer) == 0.0f) {
+			SetForcePosition({ 0, m_pos.y, 0 });
+			m_order = Order::Idle;
+			m_recallTimer = 3.0f;
 		}
 		break;
 	}
@@ -121,4 +134,19 @@ void Player::TakeDamage(float amount) {
 
 uint8_t Player::GetAttackTarget() const {
 	return m_attackTarget;
+}
+
+void Player::SetForcePosition(const Vector3 pos) {
+	m_pos = pos;
+}
+
+void Player::Recall() {
+	if (m_order != Order::Recalling) {
+		m_recallTimer = 3.0f;
+		m_order = Order::Recalling;
+	}
+}
+
+std::string_view Player::GetName() const {
+	return std::string_view(m_name);
 }
