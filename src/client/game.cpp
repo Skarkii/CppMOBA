@@ -40,6 +40,13 @@ Game::~Game() {
 
 	m_projectileModels.clear();
 
+	for (auto& [path, icon] : m_icons)
+		UnloadTexture(icon);
+
+	m_icons.clear();
+
+	m_projectileModels.clear();
+
 	m_hud.Unload();
 
 	CloseWindow();
@@ -134,6 +141,22 @@ HudView Game::makeHudView() const {
 	view.stats = champion::GetStats(self.GetChampId());
 	view.mana = self.GetMana();
 	view.maxMana = self.GetMaxMana();
+
+	const champion::Definition& def = champion::Get(self.GetChampId());
+	for (size_t i = 0; i < 4; i++) {
+		SlotView& s = view.slots[i];
+		s.cooldownLeft = m_cooldownLeft[i];
+		s.cooldownTotal = m_cooldownTotal[i];
+
+		const AbilityDef* a = def.abilities[i].empty() ? nullptr : m_abilities.Find(def.abilities[i]);
+		if (!a)
+			continue;
+		s.name = a->name;
+		s.notEnoughMana = self.GetMana() < a->manaCost;
+		if (m_icons.contains(a->visual.icon))
+			s.icon = &m_icons.at(a->visual.icon);
+	}
+
 	return view;
 }
 
@@ -169,6 +192,9 @@ void Game::Run() {
 		updateNetwork();
 		updateProjectiles(dt);
 
+		for (float& cd : m_cooldownLeft)
+			cd = std::max(0.0f, cd - dt);
+
 #ifdef MOBA_DEBUG_OVERLAY
 		if (IsKeyPressed(KEY_F3))
 			m_showDebug = !m_showDebug;
@@ -196,13 +222,21 @@ void Game::Run() {
 			}
 		}
 
-		if (IsKeyPressed(KEY_ESCAPE) && !m_menu.IsCapturingKey() && !wasTyping)
-			m_menu.Toggle();
+		if (!m_menu.IsCapturingKey() && !wasTyping) {
+			if (IsKeyPressed(KEY_ESCAPE) )
+				m_menu.Toggle();
+		}
 
 		if (!m_menu.IsOpen() && !wasTyping) {
 			if (IsKeyPressed(KEY_B)) {
 				recallCommand();
 			}
+
+			constexpr std::array<KeyboardKey, 4> kAbilityKeys = { KEY_Q, KEY_W, KEY_E, KEY_R };
+			for (std::uint8_t slot = 0; slot < kAbilityKeys.size(); slot++)
+				if (IsKeyPressed(kAbilityKeys[slot]))
+					if (auto point = mouseToGround())
+						castAbility(slot, 255, point->x, point->z);
 
 
 			if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
@@ -464,10 +498,85 @@ void Game::onMessage(const std::vector<std::byte>& data) {
 			Vector3 targetPos = m_players[target].GetPosition();
 			const Vector3 start = Vector3(playerPos.x, playerPos.y + 1.2f, playerPos.z);
 			const Vector3 end = Vector3(targetPos.x, targetPos.y + 1.2f, targetPos.z);
-			m_projectiles.push_back({ start, Vector3Normalize(Vector3Subtract(end, start)) , target, ability });
+			m_projectiles.push_back({ 
+				.position = start,
+				.direction = Vector3Normalize(Vector3Subtract(end, start)),
+				.target = target,
+				.ability = ability,
+				});
 		}
-	break;
+		break;
+	case protocol::MessageType::SkillshotCast:
+		{
+			uint16_t firstId;
+			uint8_t casterSlot;
+			std::string abilityId;
+			float x{}, z{}, fx{}, fz{};
 
+			r(firstId);
+			r(casterSlot);
+			r.readString(abilityId, 64);
+			r(x);
+			r(z);
+			r(fx);
+			r(fz);
+			if (!r.done()) {
+				std::println("{} rejected: read {} of {} bytes", protocol::ToString(type), r.pos, data.size());
+				break;
+			}
+
+			if (casterSlot >= m_playerCount)
+				break;
+
+			const AbilityDef* ability = m_abilities.Find(abilityId);
+			if (!ability) {
+				std::println("ProjectileSpawn: unkown ability '{}'", abilityId);
+				break;
+			}
+
+			for (int i = 0; i < ability->count; i++) {
+				const auto [dirX, dirZ] = SpreadDirection(*ability, fx, fz, i);
+				m_projectiles.push_back({
+					.id = static_cast<uint16_t>(firstId + i),
+					.position = Vector3(x, 1.2f, z),
+					.direction = Vector3(dirX, 0, dirZ),
+					.ability = ability,
+					});
+			}
+		}
+		break;
+	case protocol::MessageType::ProjectileEnd:
+		{
+			uint16_t id;
+			r(id);
+			if (!r.done()) {
+				std::println("{} rejected: read {} of {} bytes", protocol::ToString(type), r.pos, data.size());
+				break;
+			}
+			std::erase_if(m_projectiles, [&](const ClientProjectile& p) {
+				return p.id == id;
+				});
+
+		}
+		break;
+	case protocol::MessageType::CooldownStart:
+		{
+			uint8_t slot;
+			float cd;
+			r(slot);
+			r(cd);
+			if (!r.done()) {
+				std::println("{} rejected: read {} of {} bytes", protocol::ToString(type), r.pos, data.size());
+				break;
+			}
+
+			if (slot >= 4)
+				break;
+
+			m_cooldownLeft[slot] = cd;
+			m_cooldownTotal[slot] = cd;
+		}
+		break;
 	default:
 		break;
 	}
@@ -512,6 +621,17 @@ void Game::attackCommand(std::uint8_t targetId) {
 	m_client.flush();
 }
 
+void Game::castAbility(const std::uint8_t slot, const uint8_t targetSlot, const float pointX, const float pointZ) {
+	net::Writer w;
+	w(protocol::MessageType::CastAbility);
+	w(slot);
+	w(targetSlot);
+	w(pointX);
+	w(pointZ);
+	m_client.send(w.buffer, net::Channel::Reliable);
+	m_client.flush();
+}
+
 void Game::sendMessage(protocol::TextScope scope, std::string_view msg){
 	net::Writer w;
 	w(protocol::MessageType::ChatSend);
@@ -542,14 +662,38 @@ void Game::loadAbilities() {
 		}
 		m_projectileModels.emplace(path, model);
 	}
+
+	for (const auto& [id, ability] : m_abilities.All()) {
+		const std::string& path = ability.visual.icon;
+
+		if (path.empty() || m_icons.contains(path))
+			continue;
+
+		const std::string fullPath = "assets/" + path;
+		Texture2D icon = LoadTexture(fullPath.c_str());
+
+		if (icon.id == 0) {
+			std::println("Warning: failed to load icon '{}' for ability '{}'", fullPath, id);
+			continue;
+		}
+
+		m_icons.emplace(path, icon);
+	}
 }
 
 void Game::updateProjectiles(float dt) {
 	std::erase_if(m_projectiles, [&](ClientProjectile& p) {
-		const Vector3 aim = Vector3Add(m_players[p.target].GetPosition(), { 0.0f, 1.2f, 0.0f });
+		const float step = p.ability->speed * dt;
+
+		if (!p.target) {
+			p.position = Vector3Add(p.position, Vector3Scale(p.direction, step));
+			p.travelled += step;
+			return p.travelled >= p.ability->range;
+		}
+
+		const Vector3 aim = Vector3Add(m_players[*p.target].GetPosition(), { 0.0f, 1.2f, 0.0f });
 		const Vector3 toTarget = Vector3Subtract(aim, p.position);
 		const float distance = Vector3Length(toTarget);
-		const float step = p.ability->speed * dt;
 
 		if (distance <= step)
 			return true;

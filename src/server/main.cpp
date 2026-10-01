@@ -9,6 +9,8 @@
 #include <array>
 
 #include "serialize.hpp"
+#include <memory>
+#include <bitset>
 #include "protocol.hpp"
 
 #include "player.hpp"
@@ -16,6 +18,20 @@
 #include "champions.hpp"
 
 void onMessage(const std::vector<std::byte>& data, net::Server& server, const net::PeerId peer);
+
+struct Skillshot
+{
+	std::uint16_t id;
+	Vector3 position;
+	float dirX, dirZ;
+	float travelled = 0.0f;
+	std::uint8_t caster;
+	const AbilityDef* ability;
+	std::shared_ptr<std::bitset<10>> alreadyHit;  // shared by all arrows of one cast
+	bool done = false;
+};
+std::vector<Skillshot> skillshots;
+std::uint16_t nextProjectileId = 0;
 
 const uint8_t playerCount = 2;
 std::array<Player, playerCount> players{ 
@@ -79,7 +95,36 @@ void broadCastProjectileSpawn(net::Server& server, uint8_t casterSlot, uint8_t t
 	w(casterSlot);
 	w(targetSlot);
 	w.writeString(ability.id);
-	server.broadcast(w.buffer, net::Channel::Unreliable);
+	server.broadcast(w.buffer, net::Channel::Reliable);
+}
+
+void broadcastProjectileEnd(net::Server& server, uint16_t id) {
+	net::Writer w;
+	w(protocol::MessageType::ProjectileEnd);
+	w(id);
+	server.broadcast(w.buffer, net::Channel::Reliable);
+}
+
+void broadcastSkillshotCast(net::Server& server, uint16_t firstId, uint8_t casterSlot, const AbilityDef& a, float x, float z, float fx, float fz) {
+	net::Writer w;
+	w(protocol::MessageType::SkillshotCast);
+	w(firstId);
+	w(casterSlot);
+	w.writeString(a.id);
+	w(x);
+	w(z);
+	w(fx);
+	w(fz);
+	server.broadcast(w.buffer, net::Channel::Reliable);
+}
+
+void notifyCooldown(net::Server& server, Player& p, uint8_t slot, float cd) {
+	net::Writer w;
+	w(protocol::MessageType::CooldownStart);
+	w(slot);
+	w(cd);
+	
+	server.send(p.GetPeer(), w.buffer, net::Channel::Reliable);
 }
 
 int main(int argc, char** argv)
@@ -121,12 +166,27 @@ int main(int argc, char** argv)
 		std::println("Warning: some abilities failed to load");
 
 	for (Player& p : players) {
-		const auto* ability = abilities.Find(champion::Get(p.GetChampionId()).basicAttack);
-		if (!ability) {
+		const auto* basicAbility = abilities.Find(champion::Get(p.GetChampionId()).basicAttack);
+		if (!basicAbility) {
 			std::println("Missing basic attack for {}", champion::Get(p.GetChampionId()).name);
 			return EXIT_FAILURE;
 		}
-		p.SetBasicAttack(ability);
+		p.SetBasicAttack(basicAbility);
+
+		const champion::Definition& def = champion::Get(p.GetChampionId());
+
+		for (std::uint8_t slot = 0; slot < def.abilities.size(); slot++) {
+			const std::string_view id = def.abilities[slot];
+			if (id.empty())
+				continue;
+
+			const AbilityDef* ability = abilities.Find(id);
+			if (!ability) {
+				std::println("{}: ability '{}' (slot {}) not found", def.name, id, slot);
+				return EXIT_FAILURE;
+			}
+			p.SetAbility(slot, ability);
+		}
 	}
 
 
@@ -226,6 +286,41 @@ int main(int argc, char** argv)
 			proj.position.z += dz / distance * step;
 		}
 
+		for (Skillshot& s : skillshots) {
+			const AbilityDef& a = *s.ability;
+			Player& caster = players[s.caster];
+
+			const float step = a.speed * kTickSeconds;
+			s.position.x += s.dirX * step;
+			s.position.z += s.dirZ * step;
+			s.travelled += step;
+
+			for (uint8_t j = 0; j < playerCount; j++) {
+				Player& enemy = players[j];
+
+				if (enemy.GetTeam() == caster.GetTeam() || !enemy.IsAlive() || s.alreadyHit->test(j))
+					continue;
+
+				const float dx = enemy.GetPosition().x - s.position.x;
+				const float dz = enemy.GetPosition().z - s.position.z;
+				const float hitRadius = a.width * 0.5f + enemy.GetCollisionRadius();
+				if (dx * dx + dz * dz > hitRadius * hitRadius)
+					continue;
+
+				s.alreadyHit->set(j);
+				CallHook(a, a.onHit, &caster, &enemy);
+
+				if (!a.pierce) {
+					s.done = true;
+					broadcastProjectileEnd(server, s.id);
+					break;
+				}
+			}
+			if (s.travelled >= a.range)
+				s.done = true;
+		}
+		
+		std::erase_if(skillshots, [](const Skillshot& s) { return s.done; });
 		std::erase_if(projectiles, [](const Projectile& p) { return p.done; });
 
 		broadcastState(server, tick);
@@ -378,6 +473,55 @@ void onMessage(const std::vector<std::byte>& data, net::Server& server, const ne
 			}
 		}
 		break;
+	case protocol::MessageType::CastAbility:
+		{
+			uint8_t slot{}, targetSlot{};
+			float pointX{}, pointZ{};
+			r(slot);
+			r(targetSlot);
+			r(pointX);
+			r(pointZ);
+			if (!r.done()) {
+				std::println("{} rejected: read {} of {} bytes", protocol::ToString(type), r.pos, data.size());
+				break; 
+			}
+
+			uint8_t casterSlot = playerCount;
+			for(uint8_t i = 0; i < playerCount; i++) {
+				if (players[i].IsConnected() && players[i].GetPeer() == peer) {
+					casterSlot = i;
+					break;
+				}
+			}
+
+			if (casterSlot == playerCount || slot > 4)
+				break;
+
+			Player& caster = players[casterSlot];
+			const AbilityDef* a = caster.GetAbility(slot);
+			if (!caster.IsAlive() || !a || a->type != AbilityType::Skillshot)
+				break;
+
+			const Vector3 pos = caster.GetPosition();
+			const float dx = pointX - pos.x, dz = pointZ - pos.z;
+			const float len = std::sqrt(dx * dx + dz * dz);
+			if (len < 0.001f || !caster.TryUseAbility(slot))
+				break;
+
+			const float fx = dx / len, fz = dz / len;
+			auto alreadyHit = std::make_shared<std::bitset<10>>();
+			const uint16_t firstId = nextProjectileId;
+
+			for (int i = 0; i < a->count; i++) {
+				const auto [dirX, dirZ] = SpreadDirection(*a, fx, fz, i);
+				skillshots.push_back({ .id = nextProjectileId++, .position = { pos.x, 1.2f, pos.z },
+					   .dirX = dirX, .dirZ = dirZ, .caster = casterSlot,
+					   .ability = a, .alreadyHit = alreadyHit });
+			}
+			broadcastSkillshotCast(server, firstId, casterSlot, *a, pos.x, pos.z, fx, fz);
+			notifyCooldown(server, caster, slot, a->cooldown);
+		}
+	break;
 
 	default:
 		break;

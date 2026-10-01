@@ -71,9 +71,20 @@ public:
 	[[nodiscard]]
 	bool IsAlive() const;
 
-	void SetBasicAttack(const AbilityDef* ability) { m_basicAttack = ability;  }
+	void SetBasicAttack(const AbilityDef* ability) { m_basicAttack = ability; }
 	const AbilityDef* GetBasicAttack() const { return m_basicAttack; }
 	float AttackDamage() const { return m_stats.attackDamage; }
+
+	void SetAbility(uint8_t slot, const AbilityDef* ability) { m_abilities[slot] = ability; };
+
+	[[nodiscard]]
+	const AbilityDef* GetAbility(uint8_t slot) const { return m_abilities[slot]; }
+
+	[[nodiscard]]
+	float GetCollisionRadius() const { return m_stats.collisionRadius; }
+
+	[[nodiscard]]
+	bool TryUseAbility(uint8_t slot);
 
 private:
 	std::string m_name;
@@ -107,4 +118,6 @@ private:
 	bool inRangeOfPlayer(const Player& other) const;
 
 	const AbilityDef* m_basicAttack = nullptr;
+	std::array<const AbilityDef*, 4> m_abilities{};
+	std::array<float, 4> m_cooldowns{};
 };

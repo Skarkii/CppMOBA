@@ -22,10 +22,12 @@
 
 struct ClientProjectile
 {
+	uint16_t id = 0;
 	Vector3 position;
 	Vector3 direction;
-	std::uint8_t target;
+	std::optional<uint8_t> target;
 	const AbilityDef* ability;
+	float travelled = 0.0f;
 };
 
 
@@ -58,6 +60,7 @@ private:
 	void recallCommand();
 	void moveCommand(const Vector3 pos);
 	void attackCommand(std::uint8_t targetId);
+	void castAbility(const std::uint8_t slot, const uint8_t targetSlot, const float pointX, const float pointZ);
 	std::optional<Vector3> mouseToGround() const;
 	Vector3 m_position = { 0 };
 	float m_zoom;
@@ -90,9 +93,13 @@ private:
 
 	sol::state m_lua;
 	AbilityLibrary m_abilities{ m_lua };
+	std::array<float, 4> m_cooldownLeft{};
+	std::array<float, 4> m_cooldownTotal{};
 
 	std::vector<ClientProjectile> m_projectiles;
+
 	std::unordered_map<std::string, Model> m_projectileModels;
+	std::unordered_map<std::string, Texture2D> m_icons;
 
 	void loadAbilities();
 	void updateProjectiles(float dt);

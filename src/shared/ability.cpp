@@ -108,6 +108,8 @@ std::optional<AbilityDef> AbilityLibrary::loadFile(const std::filesystem::path& 
 	a.angle = t.get_or("angle", 0.0f);
 	a.delay = t.get_or("delay", 0.0f);
 	a.pierce = t.get_or("pierce", false);
+	a.spread = t.get_or("spread", 0.0f);
+	a.count = t.get_or("count", 1);
 
 	if (const auto shape = parseShape(t.get_or<std::string>("shape", "circle")))
 		a.shape = *shape;
@@ -123,6 +125,12 @@ std::optional<AbilityDef> AbilityLibrary::loadFile(const std::filesystem::path& 
 		return std::nullopt;
 	}
 
+	if (a.type == AbilityType::Skillshot && (a.speed <= 0.0f || a.range <= 0.0f || a.count < 1))
+	{
+		std::println("Ability '{}': skillshot needs 'speed', 'range' and 'count' >= 1", id);
+		return std::nullopt;
+	}
+
 	a.onCast = t.get_or<sol::protected_function>("onCast", sol::lua_nil);
 	a.onHit = t.get_or<sol::protected_function>("onHit", sol::lua_nil);
 
@@ -131,6 +139,7 @@ std::optional<AbilityDef> AbilityLibrary::loadFile(const std::filesystem::path& 
 		a.visual.model = v->get_or<std::string>("model", "");
 		a.visual.scale = v->get_or("scale", 1.0f);
 		a.visual.radius = v->get_or("radius", 0.2f);
+		a.visual.icon = v->get_or<std::string>("icon", "");
 
 		if (auto c = v->get<sol::optional<sol::table>>("color"))
 			for (int i = 0; i < 3; i++)

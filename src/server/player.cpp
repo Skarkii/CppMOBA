@@ -95,6 +95,14 @@ bool Player::Update(const float dt, std::span<Player> players) {
 	bool attacked = false;
 	m_attackCooldown = std::max(0.0f, m_attackCooldown - dt);
 
+	if (IsAlive()) {
+		m_health = std::min(m_health + m_stats.healthRegen, m_maxHealth);
+		m_mana = std::min(m_mana + m_stats.manaRegen, m_maxMana);
+	}
+
+	for (float& cd : m_cooldowns)
+		cd = std::max(0.0f, cd - dt);
+
 	switch (m_order) {
 	case Order::Idle:
 		break;
@@ -170,4 +178,15 @@ std::string_view Player::GetName() const {
 
 bool Player::IsAlive() const {
 	return m_order != Order::Dead;
+}
+
+bool Player::TryUseAbility(uint8_t slot) {
+	const AbilityDef* a = m_abilities[slot];
+
+	if (!a || m_cooldowns[slot] > 0.0f || m_mana < a->manaCost)
+		return false;
+
+	m_cooldowns[slot] = a->cooldown;
+	m_mana -= a->manaCost;
+	return true;
 }

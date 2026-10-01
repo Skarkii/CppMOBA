@@ -1,9 +1,11 @@
 #include "hud.hpp"
 
 #include <algorithm>
+#include <cmath>
+#include <string>
 
 void Hud::Load() {
-    m_font = LoadFontEx("assets/fonts/Phantom.otf", 48, nullptr, 0);
+    m_font = LoadFontEx("assets/fonts/Cinzel.ttf", 48, nullptr, 0);
     SetTextureFilter(m_font.texture, TEXTURE_FILTER_BILINEAR);
 }
 
@@ -25,12 +27,13 @@ void Hud::Draw(const HudView& view) const {
 
 	const float slot = 56.0f, gap = 8.0f;
 	float x = panel.x + 130;
-	drawSlot({ x, panel.y + 10, slot * 0.7f, slot * 0.7f }, ' ', 0, 0);
+
+	drawSlot({ x, panel.y + 10, slot * 0.7f, slot * 0.7f }, ' ', SlotView{});   // passive
 	x += slot * 0.7f + gap;
 
 	constexpr char keys[4] = { 'Q', 'W', 'E', 'R' };
-	for (int i = 0; i < 4; i++) {
-		drawSlot({ x, panel.y + 10, slot, slot }, keys[i], view.cooldownLeft[i], view.cooldownTotal[i]);
+	for (std::size_t i = 0; i < 4; i++) {
+		drawSlot({ x, panel.y + 10, slot, slot }, keys[i], view.slots[i]);
 		x += slot + gap;
 	}
 
@@ -58,13 +61,35 @@ void Hud::drawBar(Rectangle r, float value, float max, Color c) const {
 	DrawTextEx(m_font, text, { r.x + (r.width - textSize.x) / 2.0f, r.y + 2.0f }, size, 1.0f, WHITE);
 }
 
-void Hud::drawSlot(Rectangle r, char key, float left, float total) const {
-    DrawRectangleRounded(r, 0.2f, 6, DARKGRAY);
-    if (left > 0.0f && total > 0.0f) {
-        const float fraction = left / total;
-        DrawRectangleRec({ r.x, r.y, r.width, r.height * fraction }, Fade(BLACK, 0.6f));
-    }
-    DrawRectangleRoundedLinesEx(r, 0.2f, 6, 2.0f, GRAY);
+void Hud::drawSlot(Rectangle r, char key, const SlotView& s) const {
+	DrawRectangleRounded(r, 0.2f, 6, DARKGRAY);
+
+	const Color tint = s.notEnoughMana ? Color{ 110, 110, 255, 255 } : WHITE;
+	if (s.icon) {
+		const Rectangle src = { 0, 0, static_cast<float>(s.icon->width), static_cast<float>(s.icon->height) };
+		DrawTexturePro(*s.icon, src, r, { 0, 0 }, 0.0f, tint);
+	}
+	else if (!s.name.empty()) {
+		const std::string shortName(s.name.substr(0, 3));
+		const Vector2 size = MeasureTextEx(m_font, shortName.c_str(), 18, 1);
+		DrawTextEx(m_font, shortName.c_str(), { r.x + (r.width - size.x) / 2, r.y + (r.height - size.y) / 2 }, 18, 1, tint);
+	}
+
+	if (s.cooldownLeft > 0.0f && s.cooldownTotal > 0.0f) {
+		const float fraction = s.cooldownLeft / s.cooldownTotal;
+		const Vector2 center = { r.x + r.width / 2, r.y + r.height / 2 };
+
+		BeginScissorMode(static_cast<int>(r.x), static_cast<int>(r.y), static_cast<int>(r.width), static_cast<int>(r.height));
+		DrawCircleSector(center, r.width, -90.0f + 360.0f * (1.0f - fraction), 270.0f, 36, Fade(BLACK, 0.65f));
+		EndScissorMode();
+
+		const char* text = s.cooldownLeft >= 1.0f ? TextFormat("%.0f", std::ceil(s.cooldownLeft))
+			: TextFormat("%.1f", s.cooldownLeft);
+		const Vector2 size = MeasureTextEx(m_font, text, 22, 1);
+		DrawTextEx(m_font, text, { center.x - size.x / 2, center.y - size.y / 2 }, 22, 1, WHITE);
+	}
+
+	DrawRectangleRoundedLinesEx(r, 0.2f, 6, 2.0f, GRAY);
 	DrawTextEx(m_font, TextFormat("%c", key), { r.x + 4, r.y + 2 }, 14, 1, WHITE);
 }
 

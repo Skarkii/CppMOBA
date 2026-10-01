@@ -9,6 +9,8 @@
 #include <string_view>
 #include <unordered_map>
 #include <utility>
+#include <cmath>
+
 
 enum class AbilityType : std::uint8_t
 {
@@ -32,6 +34,7 @@ struct AbilityVisual
 	float scale = 1.0f;
 	float radius = 0.2f;
 	std::array<std::uint8_t, 4> color{ 255, 255, 255, 255 };
+	std::string icon;
 };
 
 enum class Shape : std::uint8_t { Circle, Rect, Cone };
@@ -55,6 +58,8 @@ struct AbilityDef
 	float length = 0.0f;
 	float angle = 0.0f;
 	float delay = 0.0f;
+	float spread = 0.0f;
+	int count = 1;
 	bool pierce = false;
 
 	sol::protected_function onCast;
@@ -94,4 +99,11 @@ void CallHook(const AbilityDef& ability, const sol::protected_function& hook, Ar
 		const sol::error error = result;
 		std::println("Lua error in ability '{}': {}", ability.id, error.what());
 	}
+}
+
+inline std::pair<float, float> SpreadDirection(const AbilityDef& a, float fx, float fz, int i) {
+	const float t = a.count > 1 ? static_cast<float>(i) / static_cast<float>(a.count - 1) : 0.5f;
+	const float angle = (-a.spread / 2.0f + a.spread * t) * (3.14159265f / 180.0f);
+	const float c = std::cos(angle), s = std::sin(angle);
+	return { fx * c - fz * s, fx * s + fz * c };
 }

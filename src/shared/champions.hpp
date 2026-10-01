@@ -30,6 +30,8 @@ namespace champion
         float collisionRadius; // units
         float attackSpeed;
         float maxMana;
+        float healthRegen;
+        float manaRegen;
     };
 
     // Everything that describes a champion.
@@ -38,6 +40,7 @@ namespace champion
         std::string_view name;
         Stats stats;
         std::string_view basicAttack;
+        std::array<std::string_view, 4> abilities;
     };
 
     inline constexpr auto kDefinitions = []
@@ -53,40 +56,45 @@ namespace champion
                 .name = "Barbarian",
                 .stats = {.moveSpeed = 4.5f, .maxHealth = 650.f, .attackRange = 1.5f,
                            .attackDamage = 60.f, .collisionRadius = 0.6f, .attackSpeed = 1.0f,
-                            .maxMana = 200.0f },
+                            .maxMana = 200.0f , .healthRegen = 0.2f, .manaRegen = 0.2f },
                 .basicAttack = "slash",
+                .abilities = { "", "", "", "" },
                 });
 
             set(Id::Knight, {
                 .name = "Knight",
                 .stats = {.moveSpeed = 4.5f, .maxHealth = 650.f, .attackRange = 1.5f,
                            .attackDamage = 60.f, .collisionRadius = 0.6f, .attackSpeed = 1.0f,
-							.maxMana = 200.0f },
+							.maxMana = 200.0f , .healthRegen = 0.2f, .manaRegen = 0.2f },
 				.basicAttack = "slash",
+                .abilities = { "", "", "", "" },
                 });
 
             set(Id::Mage, {
                 .name = "Mage",
                 .stats = {.moveSpeed = 4.2f, .maxHealth = 480.f, .attackRange = 6.0f,
                            .attackDamage = 45.f, .collisionRadius = 0.5f, .attackSpeed = 1.0f,
-							.maxMana = 200.0f },
+							.maxMana = 200.0f , .healthRegen = 0.2f, .manaRegen = 0.2f },
 				.basicAttack = "wand",
+                .abilities = { "", "", "", "" },
                 });
 
             set(Id::Ranger, {
                 .name = "Ranger",
                 .stats = {.moveSpeed = 10.5f, .maxHealth = 650.f, .attackRange = 7.5f,
                            .attackDamage = 45.f, .collisionRadius = 0.6f, .attackSpeed = 1.0f,
-							.maxMana = 200.0f },
+							.maxMana = 200.0f , .healthRegen = 0.2f, .manaRegen = 0.2f },
 				.basicAttack = "arrow",
+                .abilities = { "ranger_piercingshot", "ranger_volley", "", "" },
                 });
 
             set(Id::Rogue, {
                 .name = "Rogue",
                 .stats = {.moveSpeed = 4.5f, .maxHealth = 650.f, .attackRange = 1.5f,
                            .attackDamage = 60.f, .collisionRadius = 0.6f, .attackSpeed = 1.0f,
-							.maxMana = 200.0f },
+							.maxMana = 200.0f , .healthRegen = 0.2f, .manaRegen = 0.2f },
 				.basicAttack = "stab",
+                .abilities = { "", "", "", "" },
                 });
 
             return table;

@@ -38,12 +38,16 @@ namespace protocol
         AttackCommand,
         RecallCommand,
         ChatSend,
+        CastAbility,
 
         // Server->Client
         MatchInfo,
         PlayerState,
         ChatMessage,
         ProjectileSpawn,
+        ProjectileEnd,
+        SkillshotCast,
+        CooldownStart,
 
         Count,
     };
@@ -59,11 +63,15 @@ namespace protocol
     "AttackCommand",
     "RecallCommand",
     "ChatSend",
+    "CastAbility",
 
     "MatchInfo",
     "PlayerState",
     "ChatMessage",
     "ProjectileSpawn",
+    "ProjectileEnd",
+    "SkillshotCast",
+    "CooldownStart",
     };
 
     constexpr std::string_view ToString(MessageType type) {

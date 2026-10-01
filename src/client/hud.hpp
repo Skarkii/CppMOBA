@@ -2,13 +2,22 @@
 
 #include <raylib.h>
 #include "champions.hpp"
+#include <array>
+#include <string_view>
+
+struct SlotView {
+	const Texture2D* icon = nullptr;
+	std::string_view name;
+	float cooldownLeft = 0.0f;
+	float cooldownTotal = 0.0f;
+	bool notEnoughMana = false;
+};
 
 struct HudView {
 	std::string_view championName;
 	float health, maxHealth;
 	float mana, maxMana;
-	std::array<float, 4> cooldownLeft;
-	std::array<float, 4> cooldownTotal;
+	std::array<SlotView, 4> slots;
 	champion::Stats stats;
 };
 
@@ -20,7 +29,7 @@ public:
 	void Draw(const HudView& view) const;
 private:
 	void drawBar(Rectangle r, float value, float max, Color c) const;
-	void drawSlot(Rectangle r, char key, float left, float total) const;
+	void drawSlot(Rectangle r, char key, const SlotView& s) const;
 	void drawStats(Rectangle r, const champion::Stats& s) const;
 	float m_screenW;
 	float m_screenH;
