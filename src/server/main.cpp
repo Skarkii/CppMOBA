@@ -2,6 +2,7 @@
 
 #include "net.hpp"
 
+#include <cmath>
 #include <print>
 #include <thread>
 #include <chrono>
