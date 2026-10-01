@@ -25,7 +25,8 @@ int main(  int argc,  char** argv) {
 
 	// Connect to Game Server and fetch required champions, maps etc
 	// Set up data streams
-	game.Connect();
+	if (!game.Connect())
+		return EXIT_FAILURE;
 
 	// Load textures, map, etc
 	game.Prepare();

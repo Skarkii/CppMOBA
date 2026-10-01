@@ -40,11 +40,10 @@ Game::~Game() {
 	CloseWindow();
 }
 
-void Game::Connect() {
-	//m_client.connect(...), then m_client.send(...) and m_client.flush()
+bool Game::Connect() {
 	if (!m_client.connect(m_hostServerName, m_hostServerPort)) {
 		std::println("Failed to connect to server {}:{}", m_hostServerName, m_hostServerPort);
-		// TODO: Handle failure to connect
+		return false;
 	}
 	std::println("Connecting to server {}:{}", m_hostServerName, m_hostServerPort);
 	m_connectionState = ConnectionState::Connecting;
@@ -53,9 +52,13 @@ void Game::Connect() {
 
 	while (m_connectionState != ConnectionState::Joined || !m_retrievedMatchInfo) {
 		updateNetwork();
+
+		if (m_connectionState == ConnectionState::Failed)
+			return false;
 	}
 
 	std::println("Connected and retrieved match info");
+	return true;
 }
 
 void Game::loadModels() {
@@ -307,6 +310,14 @@ void Game::onMessage(const std::vector<std::byte>& data) {
 
 	switch (type)
 	{
+	case protocol::MessageType::DeclineInvalidMessage:
+	case protocol::MessageType::DeclineProtocolVersion:
+	case protocol::MessageType::DeclineToken:
+		{
+			std::println("Handshake failed: {}", protocol::ToString(type));
+			m_connectionState = ConnectionState::Failed;
+		}
+		break;
 	case protocol::MessageType::Welcome:
 		{
 			uint8_t playerId;

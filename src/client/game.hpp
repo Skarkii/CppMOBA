@@ -16,13 +16,13 @@
 #include "debug_overlay.hpp"
 #endif
 
-enum class ConnectionState { Disconnected, Connecting, Joined };
+enum class ConnectionState { Disconnected, Connecting, Joined, Failed };
 
 class Game {
 public:
 	Game(uint64_t token);
 	~Game();
-	void Connect();
+	bool Connect();
 	void Prepare();
 	void WaitForServer();
 	void Run();

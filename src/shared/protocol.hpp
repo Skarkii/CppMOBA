@@ -19,6 +19,9 @@ namespace protocol
         // Handshake
         Hello = 0, // C->
         Welcome, // S -> C
+        DeclineProtocolVersion,
+        DeclineToken,
+        DeclineInvalidMessage,
 
         // Client->Server
         MoveCommand,
@@ -35,6 +38,9 @@ namespace protocol
     inline constexpr std::array<std::string_view, static_cast<std::size_t>(MessageType::Count)> kMessageNames{
     "Hello",
     "Welcome",
+	"DeclineProtocolVersion",
+	"DeclineToken",
+	"DeclineInvalidMessage",
 
     "MoveCommand",
     "AttackCommand",

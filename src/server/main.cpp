@@ -46,7 +46,7 @@ void broadcastState(net::Server& server, std::uint32_t tick) {
 	server.broadcast(w.buffer, net::Channel::Unreliable);
 }
 
-int main()
+int main(int argc, char** argv)
 {
 	net::Library lib;
 
@@ -66,6 +66,15 @@ int main()
 	}
 	std::println("Listening on port {}", port);
 
+	bool requireAllPlayers = false;
+	bool started = true;
+
+	if (argc > 1 && std::string_view(argv[1]) == "-REQUIREPLAYERS") {
+		requireAllPlayers = true;
+		started = false;
+	}
+
+
 	using clock = std::chrono::steady_clock;
 
 	constexpr auto kTick = protocol::kTick;
@@ -74,6 +83,8 @@ int main()
 	std::uint32_t tick = 0;
 
 	auto next = clock::now();
+
+	uint32_t maximumTickWaitTimeForPlayers = 30 * 10;
 
 	while (true) {
 		tick += 1;
@@ -94,6 +105,23 @@ int main()
 				},
 				}, event);
 		}
+
+		if (!started && requireAllPlayers) {
+			bool shouldStart = true;
+			for (uint8_t i = 0; i < playerCount; i++) {
+				if (!players[i].IsConnected()) {
+					shouldStart = false;
+				}
+				
+			}
+			if (shouldStart || tick > maximumTickWaitTimeForPlayers)
+				started = true;
+
+			next += kTick;
+			std::this_thread::sleep_until(next);
+			continue;
+		}
+
 
 		for (std::uint8_t i = 0; i < playerCount; i++) {
 			if (players[i].Update(kTickSeconds, players)) {
@@ -138,6 +166,13 @@ int main()
 	return EXIT_SUCCESS;
 }
 
+void OnHandshakeFailed(net::Server& server, protocol::MessageType type) {
+	std::println("Handshake failed: {}", protocol::ToString(type));
+	net::Writer w;
+	w(type);
+	server.broadcast(w.buffer, net::Channel::Reliable);
+}
+
 void onMessage(const std::vector<std::byte>& data, net::Server& server, const net::PeerId peer) {
 	/*
 	for (std::byte b : data)
@@ -163,11 +198,12 @@ void onMessage(const std::vector<std::byte>& data, net::Server& server, const ne
 
 			if (!r.done()) {
 				std::println("{} rejected: read {} of {} bytes", protocol::ToString(type), r.pos, data.size());
+				OnHandshakeFailed(server, protocol::MessageType::DeclineInvalidMessage);
 				break; 
 			}
 
 			if (kver != protocol::kVersion) {
-				server.disconnect(peer);
+				OnHandshakeFailed(server, protocol::MessageType::DeclineProtocolVersion);
 				std::println("Player Connected with wrong protol version");
 				break;
 			}
@@ -182,7 +218,7 @@ void onMessage(const std::vector<std::byte>& data, net::Server& server, const ne
 			}
 
 			if (playerId >= playerCount) {
-				server.disconnect(peer);
+				OnHandshakeFailed(server, protocol::MessageType::DeclineToken);
 				std::println("Player is not in this game");
 				break;
 			}
