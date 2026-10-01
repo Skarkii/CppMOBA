@@ -11,6 +11,8 @@
 #include <unordered_map>
 #include <optional>
 #include "menu.hpp"
+#include "chat.hpp"
+#include "protocol.hpp"
 
 #ifdef MOBA_DEBUG_OVERLAY
 #include "debug_overlay.hpp"
@@ -69,7 +71,11 @@ private:
 	Menu m_menu;
 	Settings m_settings;
 
-	void UpdateSettings();
+	void updateSettings();
+
+	Chat m_chat;
+
+	void sendMessage(protocol::TextScope scope, std::string_view msg);
 
 #ifdef MOBA_DEBUG_OVERLAY
 	bool m_showDebug = true;

@@ -13,7 +13,7 @@ struct Vector3 {
 };
 
 enum class ConnectionState { Disconnected, Connected};
-enum class Order { Idle, MoveTo, Attack, Recalling };
+enum class Order { Idle, MoveTo, Attack, Recalling, Dead };
 
 enum class Team : uint8_t { Blue, Red } ;
 
@@ -66,6 +66,9 @@ public:
 
 	[[nodiscard]]
 	std::string_view GetName() const;
+
+	[[nodiscard]]
+	bool IsAlive() const;
 private:
 	std::string m_name;
 	Vector3 m_pos = { 0 };
@@ -85,6 +88,7 @@ private:
 	Order m_order = Order::Idle;
 	float m_attackCooldown = 0.0f;
 	float m_recallTimer = 3.0f;
+	float m_respawnTimer = 3.0f;
 	Team m_team;
 	
 	ConnectionState m_connected = ConnectionState::Disconnected;

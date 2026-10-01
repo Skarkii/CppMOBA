@@ -131,7 +131,7 @@ HudView Game::makeHudView() const {
 	return view;
 }
 
-void Game::UpdateSettings() {
+void Game::updateSettings() {
 	if (IsWindowState(FLAG_BORDERLESS_WINDOWED_MODE) != m_settings.fullscreen) {
 		ToggleBorderlessWindowed();
 		m_screenW = static_cast<float>(GetScreenWidth());
@@ -179,13 +179,22 @@ void Game::Run() {
 		const std::optional<std::uint8_t> hovered = enemyUnderMouse();
 		float wheel = 0.0f;
 
-		if (IsKeyPressed(KEY_ESCAPE) && !m_menu.IsCapturingKey())
+		const bool wasTyping = m_chat.IsTyping();
+		if (!m_menu.IsOpen()) {
+			if (auto input = m_chat.Update()) {
+				//m_chat.AddMessage(m_players[m_playerId].GetPlayerName(), SKYBLUE, input->allChat, input->text);
+				sendMessage(input->scope, input->text);
+			}
+		}
+
+		if (IsKeyPressed(KEY_ESCAPE) && !m_menu.IsCapturingKey() && !wasTyping)
 			m_menu.Toggle();
 
-		if (!m_menu.IsOpen()) {
+		if (!m_menu.IsOpen() && !wasTyping) {
 			if (IsKeyPressed(KEY_B)) {
 				recallCommand();
 			}
+
 
 			if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
 				if (hovered)
@@ -193,8 +202,6 @@ void Game::Run() {
 				else if (auto point = mouseToGround())
 					moveCommand(*point);
 			}
-
-
 			wheel = GetMouseWheelMove();
 		}
 
@@ -246,11 +253,13 @@ void Game::Run() {
 
 		m_hud.Draw(makeHudView());
 
+		m_chat.Draw(m_screenH - 140.0f);
+
 		if (m_menu.IsOpen()) {
 			MenuAction act = m_menu.Update(m_settings);
 
 			if (m_menu.HasSettingsChanged()) {
-				UpdateSettings();
+				updateSettings();
 				m_menu.ResetSettingsChanged();
 			}
 
@@ -342,18 +351,7 @@ void Game::onMessage(const std::vector<std::byte>& data) {
 
 			for (uint8_t i = 0; i < playerCount; i++) {
 				r(champIds[i]);
-
-				uint16_t playerNameLength;
-				r(playerNameLength);
-				if (playerNameLength > protocol::maximumNameLength) {
-					std::println("Retrieved player with name over limit, got: {} - maximum: {}", playerNameLength, protocol::maximumNameLength);
-					break;
-				}
-				for (size_t j = 0; j < playerNameLength; j++) {
-					char c;
-					r(c);
-					names[i] += c;
-				}
+				r.readString(names[i], 32);
 			}
 			if (!r.done()) {
 				std::println("{} rejected: read {} of {} bytes", protocol::ToString(type), r.pos, data.size());
@@ -403,6 +401,25 @@ void Game::onMessage(const std::vector<std::byte>& data) {
 			}
 		}
 		break;
+	case protocol::MessageType::ChatMessage:
+		{
+			protocol::TextScope scope;
+			champion::Id champId;
+			std::string msg;
+			std::string sender;
+			r(scope);
+			r(champId);
+			r.readString(msg, protocol::maximumChatLength);
+			r.readString(sender, protocol::maximumNameLength);
+			if (!r.done()) {
+				std::println("{} rejected: read {} of {} bytes", protocol::ToString(type), r.pos, data.size());
+				break; 
+			}
+			
+			std::string_view champName = champion::Get(champId).name;
+			m_chat.AddMessage(sender, champName, scope, msg);
+		}
+		break;
 
 	default:
 		break;
@@ -444,6 +461,15 @@ void Game::attackCommand(std::uint8_t targetId) {
 	net::Writer w;
 	w(protocol::MessageType::AttackCommand);
 	w(targetId);
+	m_client.send(w.buffer, net::Channel::Reliable);
+	m_client.flush();
+}
+
+void Game::sendMessage(protocol::TextScope scope, std::string_view msg){
+	net::Writer w;
+	w(protocol::MessageType::ChatSend);
+	w(scope);
+	w.writeString(msg);
 	m_client.send(w.buffer, net::Channel::Reliable);
 	m_client.flush();
 }

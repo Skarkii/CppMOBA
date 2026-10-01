@@ -103,6 +103,7 @@ set(CLIENT_SOURCES
     src/client/hud.cpp
     src/client/debug_overlay.cpp
     src/client/menu.cpp
+    src/client/chat.cpp
 )
 
 function(moba_set_warnings target)

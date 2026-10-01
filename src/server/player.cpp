@@ -103,6 +103,10 @@ bool Player::Update(const float dt, std::span<Player> players) {
 			m_order = Order::Idle;
 		break;
 	case Order::Attack:
+		if (!players[m_attackTarget].IsAlive()) {
+			m_order = Order::Idle;
+			break;
+		}
 		if (!inRangeOfPlayer(players[m_attackTarget])) {
 			moveTo(players[m_attackTarget].GetPosition(), dt);
 		}
@@ -112,11 +116,21 @@ bool Player::Update(const float dt, std::span<Player> players) {
 		}
 		break;
 	case Order::Recalling:
-		m_recallTimer -= dt;
-		if (std::max(0.0f, m_recallTimer) == 0.0f) {
+		m_recallTimer = std::max(0.0f, m_recallTimer - dt);
+		if (m_recallTimer == 0.0f) {
 			SetForcePosition({ 0, m_pos.y, 0 });
 			m_order = Order::Idle;
 			m_recallTimer = 3.0f;
+		}
+		break;
+
+	case Order::Dead:
+		m_respawnTimer = std::max(0.0f, m_respawnTimer -dt);
+		if (m_respawnTimer == 0.0f) {
+			SetForcePosition({ 0, m_pos.y, 0 });
+			m_order = Order::Idle;
+			m_respawnTimer = 3.0f;
+			m_health = m_maxHealth;
 		}
 		break;
 	}
@@ -130,6 +144,9 @@ Team Player::GetTeam() const {
 void Player::TakeDamage(float amount) {
 	m_health = std::max(0.0f, m_health - amount);
 	std::println("Player {} health: {}", champion::Get(m_champId).name, m_health);
+	if (m_health == 0.0f) {
+		m_order = Order::Dead;
+	}
 }
 
 uint8_t Player::GetAttackTarget() const {
@@ -149,4 +166,8 @@ void Player::Recall() {
 
 std::string_view Player::GetName() const {
 	return std::string_view(m_name);
+}
+
+bool Player::IsAlive() const {
+	return m_order != Order::Dead;
 }

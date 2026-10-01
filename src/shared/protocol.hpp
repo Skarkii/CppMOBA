@@ -4,6 +4,10 @@
 #include <cstdint>
 #include <chrono>
 
+#include <array>
+#include <cstddef>
+#include <string_view>
+
 namespace protocol
 {
     constexpr std::uint16_t kVersion = 1;
@@ -13,6 +17,12 @@ namespace protocol
 	constexpr float kTickSeconds = std::chrono::duration<float>(kTick).count();
 
     constexpr uint16_t maximumNameLength = 24;
+    constexpr uint16_t maximumChatLength = 50;
+
+    enum class TextScope : std::uint8_t {
+        Team,
+        All,
+    };
 
     enum class MessageType : std::uint8_t
     {
@@ -27,10 +37,12 @@ namespace protocol
         MoveCommand,
         AttackCommand,
         RecallCommand,
+        ChatSend,
 
         // Server->Client
         MatchInfo,
         PlayerState,
+        ChatMessage,
 
         Count,
     };
@@ -45,9 +57,11 @@ namespace protocol
     "MoveCommand",
     "AttackCommand",
     "RecallCommand",
+    "ChatSend",
 
     "MatchInfo",
     "PlayerState",
+    "ChatMessage",
     };
 
     constexpr std::string_view ToString(MessageType type) {

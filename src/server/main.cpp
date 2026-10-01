@@ -46,6 +46,26 @@ void broadcastState(net::Server& server, std::uint32_t tick) {
 	server.broadcast(w.buffer, net::Channel::Unreliable);
 }
 
+void broadcastMessage(net::Server& server, protocol::TextScope scope, std::string_view msg, Player& sender) {
+	net::Writer w;
+	w(protocol::MessageType::ChatMessage);
+	w(scope);
+	w(sender.GetChampionId());
+	w.writeString(msg);
+	w.writeString(sender.GetName());
+
+	if (scope == protocol::TextScope::All) {
+		server.broadcast(w.buffer, net::Channel::Reliable);
+		return;
+	}
+
+	for (Player& p : players) {
+		if (p.GetTeam() == sender.GetTeam() && p.IsConnected()) {
+			server.send(p.GetPeer(), w.buffer, net::Channel::Reliable);
+		}
+	}
+}
+
 int main(int argc, char** argv)
 {
 	net::Library lib;
@@ -131,7 +151,7 @@ int main(int argc, char** argv)
 					.caster = i,
 					.target = p.GetAttackTarget(),
 					.speed = 15.0f,
-					.damage = 10
+					.damage = 100
 					});
 			}
 		}
@@ -147,7 +167,8 @@ int main(int argc, char** argv)
 			const float step = proj.speed * kTickSeconds;
 
 			if (distance <= step) {
-				target.TakeDamage(proj.damage);
+				if(target.IsAlive())
+					target.TakeDamage(proj.damage);
 				proj.done = true;
 			}
 
@@ -233,10 +254,7 @@ void onMessage(const std::vector<std::byte>& data, net::Server& server, const ne
 			matchInfo(amountOfPlayers);
 			for (uint8_t i = 0; i < amountOfPlayers; i++) {
 				matchInfo(players[i].GetChampionId());
-				matchInfo(static_cast<std::uint16_t>(players[i].GetName().size()));
-				for (size_t j = 0; j < players[i].GetName().size(); j++) {
-					matchInfo(players[i].GetName()[j]);
-				}
+				matchInfo.writeString(players[i].GetName());
 			}
 			server.send(peer, welcome.buffer, net::Channel::Reliable);
 			server.send(peer, matchInfo.buffer, net::Channel::Reliable);
@@ -255,7 +273,7 @@ void onMessage(const std::vector<std::byte>& data, net::Server& server, const ne
 				break; 
 			}
 			for (Player& player : players) {
-				if (player.IsConnected() && player.GetPeer() == peer) {
+				if (player.IsConnected() && player.GetPeer() == peer && player.IsAlive()) {
 					player.SetTargetPosition(newPos);
 					break;
 				}
@@ -271,7 +289,7 @@ void onMessage(const std::vector<std::byte>& data, net::Server& server, const ne
 				break; 
 			}
 			for (Player& player : players) {
-				if (player.IsConnected() && player.GetPeer() == peer) {
+				if (player.IsConnected() && player.GetPeer() == peer && player.IsAlive()) {
 					if (targetId >= playerCount || player.GetTeam() == players[targetId].GetTeam())
 						break;
 					player.SetAttackTarget(targetId);
@@ -287,11 +305,29 @@ void onMessage(const std::vector<std::byte>& data, net::Server& server, const ne
 				break; 
 			}
 			for (Player& player : players) {
-				if (player.IsConnected() && player.GetPeer() == peer) {
+				if (player.IsConnected() && player.GetPeer() == peer && player.IsAlive()) {
 					player.Recall();
 				}
 			}
 		}
+		break;
+	case protocol::MessageType::ChatSend:
+		{
+			protocol::TextScope scope;
+			std::string msg;
+			r(scope);
+			r.readString(msg, protocol::maximumChatLength);
+			if (!r.done()) {
+				std::println("{} rejected: read {} of {} bytes", protocol::ToString(type), r.pos, data.size());
+				break; 
+			}
+			for (Player& player : players) {
+				if (player.IsConnected() && player.GetPeer() == peer) {
+					broadcastMessage(server, scope, msg, player);
+				}
+			}
+		}
+		break;
 
 	default:
 		break;
