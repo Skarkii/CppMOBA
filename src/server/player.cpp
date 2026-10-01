@@ -111,7 +111,7 @@ bool Player::Update(const float dt, std::span<Player> players) {
 			moveTo(players[m_attackTarget].GetPosition(), dt);
 		}
 		else if(m_attackCooldown == 0.0f) {
-			m_attackCooldown = m_stats.attackSpeed;
+			m_attackCooldown = m_basicAttack->cooldown;
 			attacked = true;
 		}
 		break;

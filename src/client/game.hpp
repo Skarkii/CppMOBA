@@ -13,10 +13,21 @@
 #include "menu.hpp"
 #include "chat.hpp"
 #include "protocol.hpp"
+#include "ability.hpp"
+#include <raymath.h>
 
 #ifdef MOBA_DEBUG_OVERLAY
 #include "debug_overlay.hpp"
 #endif
+
+struct ClientProjectile
+{
+	Vector3 position;
+	Vector3 direction;
+	std::uint8_t target;
+	const AbilityDef* ability;
+};
+
 
 enum class ConnectionState { Disconnected, Connecting, Joined, Failed };
 
@@ -76,6 +87,17 @@ private:
 	Chat m_chat;
 
 	void sendMessage(protocol::TextScope scope, std::string_view msg);
+
+	sol::state m_lua;
+	AbilityLibrary m_abilities{ m_lua };
+
+	std::vector<ClientProjectile> m_projectiles;
+	std::unordered_map<std::string, Model> m_projectileModels;
+
+	void loadAbilities();
+	void updateProjectiles(float dt);
+	void drawProjectiles() const;
+
 
 #ifdef MOBA_DEBUG_OVERLAY
 	bool m_showDebug = true;

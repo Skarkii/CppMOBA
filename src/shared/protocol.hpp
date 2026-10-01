@@ -43,6 +43,7 @@ namespace protocol
         MatchInfo,
         PlayerState,
         ChatMessage,
+        ProjectileSpawn,
 
         Count,
     };
@@ -62,6 +63,7 @@ namespace protocol
     "MatchInfo",
     "PlayerState",
     "ChatMessage",
+    "ProjectileSpawn",
     };
 
     constexpr std::string_view ToString(MessageType type) {

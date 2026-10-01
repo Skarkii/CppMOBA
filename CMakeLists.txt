@@ -89,6 +89,7 @@ set(SHARED_SOURCES
     src/shared/serialize.hpp
     src/shared/protocol.hpp
     src/shared/champions.hpp
+    src/shared/ability.cpp
 )
 
 set(SERVER_SOURCES
@@ -135,7 +136,13 @@ if(MOBA_BUILD_SERVER)
     target_include_directories(MOBA_server PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/server)
     target_link_libraries(MOBA_server PRIVATE MOBA::shared)
     target_compile_definitions(MOBA_server PRIVATE MOBA_SERVER=1)
+    target_compile_definitions(sol2_headers INTERFACE SOL_ALL_SAFETIES_ON=1)
     moba_set_warnings(MOBA_server)
+
+    add_custom_command(TARGET MOBA_server POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_CURRENT_SOURCE_DIR}/assets
+            $<TARGET_FILE_DIR:MOBA_server>/assets)
 endif()
 
 # ---------------------------------------------------------------------------

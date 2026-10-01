@@ -5,6 +5,7 @@
 #include "net.hpp"
 #include "champions.hpp"
 #include <span>
+#include "ability.hpp"
 
 struct Vector3 {
 	float x;
@@ -69,6 +70,11 @@ public:
 
 	[[nodiscard]]
 	bool IsAlive() const;
+
+	void SetBasicAttack(const AbilityDef* ability) { m_basicAttack = ability;  }
+	const AbilityDef* GetBasicAttack() const { return m_basicAttack; }
+	float AttackDamage() const { return m_stats.attackDamage; }
+
 private:
 	std::string m_name;
 	Vector3 m_pos = { 0 };
@@ -99,4 +105,6 @@ private:
 
 	[[nodiscard]]
 	bool inRangeOfPlayer(const Player& other) const;
+
+	const AbilityDef* m_basicAttack = nullptr;
 };

@@ -30,10 +30,15 @@ Game::Game(uint64_t token) {
 }
 
 Game::~Game() {
-	for (auto m : m_models) {
+	for (auto m : m_models)
 		UnloadModel(m.second);
-	}
+
 	m_models.clear();
+
+	for (auto& [path, model] : m_projectileModels)
+		UnloadModel(model);
+
+	m_projectileModels.clear();
 
 	m_hud.Unload();
 
@@ -78,6 +83,7 @@ void Game::loadModels() {
 
 void Game::Prepare() {
 	loadModels();
+	loadAbilities();
 	m_hud.Load();
 }
 
@@ -158,7 +164,10 @@ void Game::updateSettings() {
 
 void Game::Run() {
 	while (m_running && !WindowShouldClose()) {
+		const float dt = GetFrameTime();
+
 		updateNetwork();
+		updateProjectiles(dt);
 
 #ifdef MOBA_DEBUG_OVERLAY
 		if (IsKeyPressed(KEY_F3))
@@ -237,11 +246,14 @@ void Game::Run() {
 		}
 		
 
+		drawProjectiles();
+
 		EndMode3D();
 
 		for (uint8_t i = 0; i < m_playerCount; i++) {
 			m_players[i].DrawOverlay(m_camera, m_showPlayerNames);
 		}
+
 
 		const Vector2 m = GetMousePosition();
 		const Color color = hovered ? RED : WHITE;
@@ -346,6 +358,12 @@ void Game::onMessage(const std::vector<std::byte>& data) {
 
 			uint8_t playerCount;
 			r(playerCount);
+
+			if (playerCount > 10) {
+				std::println("{} rejected: invalid playercount, got {}, maximum: {}", protocol::ToString(type), playerCount, 10);
+				break;
+			}
+
 			std::array<champion::Id, 10> champIds{};
 			std::array<std::string, 10> names;
 
@@ -357,6 +375,8 @@ void Game::onMessage(const std::vector<std::byte>& data) {
 				std::println("{} rejected: read {} of {} bytes", protocol::ToString(type), r.pos, data.size());
 				break; 
 			}
+
+
 			for (uint8_t i = 0; i < playerCount; i++) {
 				m_players[i].SetChampId(champIds[i]);
 				m_players[i].SetPlayerName(names[i]);
@@ -420,6 +440,33 @@ void Game::onMessage(const std::vector<std::byte>& data) {
 			m_chat.AddMessage(sender, champName, scope, msg);
 		}
 		break;
+	case protocol::MessageType::ProjectileSpawn:
+		{
+			std::uint8_t caster{}, target{};
+			std::string abilityId;
+			r(caster);
+			r(target);
+			r.readString(abilityId, 64);
+			if (!r.done()) {
+				std::println("{} rejected: read {} of {} bytes", protocol::ToString(type), r.pos, data.size());
+				break;
+			}
+			if (caster >= m_playerCount || target >= m_playerCount)
+				break;
+
+			const AbilityDef* ability = m_abilities.Find(abilityId);
+			if (!ability) {
+				std::println("ProjectileSpawn: unkown ability '{}'", abilityId);
+				break;
+			}
+
+			Vector3 playerPos = m_players[caster].GetPosition();
+			Vector3 targetPos = m_players[target].GetPosition();
+			const Vector3 start = Vector3(playerPos.x, playerPos.y + 1.2f, playerPos.z);
+			const Vector3 end = Vector3(targetPos.x, targetPos.y + 1.2f, targetPos.z);
+			m_projectiles.push_back({ start, Vector3Normalize(Vector3Subtract(end, start)) , target, ability });
+		}
+	break;
 
 	default:
 		break;
@@ -474,3 +521,61 @@ void Game::sendMessage(protocol::TextScope scope, std::string_view msg){
 	m_client.flush();
 }
 
+void Game::loadAbilities() {
+	m_lua.open_libraries(sol::lib::base, sol::lib::math);
+
+	if(!m_abilities.LoadDirectory("assets/abilities"))
+		std::println("Warning: some abilities failed to load");
+
+	for (const auto& [id, ability] : m_abilities.All()) {
+		const std::string& path = ability.visual.model;
+
+		if (path.empty() || m_projectileModels.contains(path))
+			continue;
+
+		const std::string fullPath = "assets/" + path;
+		Model model = LoadModel(fullPath.c_str());
+
+		if (model.meshCount == 0) {
+			std::println("Warning: failed to load model '{}' for ability '{}'", fullPath, id);
+			continue;
+		}
+		m_projectileModels.emplace(path, model);
+	}
+}
+
+void Game::updateProjectiles(float dt) {
+	std::erase_if(m_projectiles, [&](ClientProjectile& p) {
+		const Vector3 aim = Vector3Add(m_players[p.target].GetPosition(), { 0.0f, 1.2f, 0.0f });
+		const Vector3 toTarget = Vector3Subtract(aim, p.position);
+		const float distance = Vector3Length(toTarget);
+		const float step = p.ability->speed * dt;
+
+		if (distance <= step)
+			return true;
+
+		p.direction = Vector3Scale(toTarget, 1.0f / distance);
+		p.position = Vector3Add(p.position, Vector3Scale(p.direction, step));
+		return false;
+	});
+}
+
+void Game::drawProjectiles() const {
+	for (const ClientProjectile& p : m_projectiles)
+	{
+		const AbilityVisual& v = p.ability->visual;
+		const Color color = { v.color[0], v.color[1], v.color[2], v.color[3] };
+
+		const auto it = m_projectileModels.find(v.model);
+		if (it != m_projectileModels.end())
+		{
+			const float yaw = atan2f(p.direction.x, p.direction.z) * RAD2DEG;
+			DrawModelEx(it->second, p.position, { 0.0f, 1.0f, 0.0f }, yaw,
+				{ v.scale, v.scale, v.scale }, color);
+		}
+		else
+		{
+			DrawSphere(p.position, v.radius, color);
+		}
+	}
+}

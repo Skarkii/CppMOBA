@@ -37,6 +37,7 @@ namespace champion
     {
         std::string_view name;
         Stats stats;
+        std::string_view basicAttack;
     };
 
     inline constexpr auto kDefinitions = []
@@ -53,6 +54,7 @@ namespace champion
                 .stats = {.moveSpeed = 4.5f, .maxHealth = 650.f, .attackRange = 1.5f,
                            .attackDamage = 60.f, .collisionRadius = 0.6f, .attackSpeed = 1.0f,
                             .maxMana = 200.0f },
+                .basicAttack = "slash",
                 });
 
             set(Id::Knight, {
@@ -60,6 +62,7 @@ namespace champion
                 .stats = {.moveSpeed = 4.5f, .maxHealth = 650.f, .attackRange = 1.5f,
                            .attackDamage = 60.f, .collisionRadius = 0.6f, .attackSpeed = 1.0f,
 							.maxMana = 200.0f },
+				.basicAttack = "slash",
                 });
 
             set(Id::Mage, {
@@ -67,13 +70,15 @@ namespace champion
                 .stats = {.moveSpeed = 4.2f, .maxHealth = 480.f, .attackRange = 6.0f,
                            .attackDamage = 45.f, .collisionRadius = 0.5f, .attackSpeed = 1.0f,
 							.maxMana = 200.0f },
+				.basicAttack = "wand",
                 });
 
             set(Id::Ranger, {
                 .name = "Ranger",
                 .stats = {.moveSpeed = 10.5f, .maxHealth = 650.f, .attackRange = 7.5f,
-                           .attackDamage = 60.f, .collisionRadius = 0.6f, .attackSpeed = 1.0f,
+                           .attackDamage = 45.f, .collisionRadius = 0.6f, .attackSpeed = 1.0f,
 							.maxMana = 200.0f },
+				.basicAttack = "arrow",
                 });
 
             set(Id::Rogue, {
@@ -81,6 +86,7 @@ namespace champion
                 .stats = {.moveSpeed = 4.5f, .maxHealth = 650.f, .attackRange = 1.5f,
                            .attackDamage = 60.f, .collisionRadius = 0.6f, .attackSpeed = 1.0f,
 							.maxMana = 200.0f },
+				.basicAttack = "stab",
                 });
 
             return table;

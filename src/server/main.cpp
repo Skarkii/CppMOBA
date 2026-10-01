@@ -18,14 +18,21 @@
 void onMessage(const std::vector<std::byte>& data, net::Server& server, const net::PeerId peer);
 
 const uint8_t playerCount = 2;
-std::array<Player, playerCount> players{ Player(100, "Abc", champion::Id::Barbarian, Team::Blue), Player(101, "def", champion::Id::Ranger, Team::Red)};
+std::array<Player, playerCount> players{ 
+	Player(100, "Abc", champion::Id::Barbarian, Team::Blue), 
+	Player(101, "def", champion::Id::Ranger, Team::Red),
+	/*
+	Player(102, "ghi", champion::Id::Rogue, Team::Blue),
+	Player(103, "jkl", champion::Id::Mage, Team::Red),
+	*/
+};
 
 struct Projectile {
 	Vector3 position;
 	std::uint8_t caster;
 	std::uint8_t target;
 	float speed;
-	float damage;
+	const AbilityDef* ability;
 	bool done = false;
 };
 
@@ -66,6 +73,15 @@ void broadcastMessage(net::Server& server, protocol::TextScope scope, std::strin
 	}
 }
 
+void broadCastProjectileSpawn(net::Server& server, uint8_t casterSlot, uint8_t targetSlot, const AbilityDef& ability) {
+	net::Writer w;
+	w(protocol::MessageType::ProjectileSpawn);
+	w(casterSlot);
+	w(targetSlot);
+	w.writeString(ability.id);
+	server.broadcast(w.buffer, net::Channel::Unreliable);
+}
+
 int main(int argc, char** argv)
 {
 	net::Library lib;
@@ -92,6 +108,25 @@ int main(int argc, char** argv)
 	if (argc > 1 && std::string_view(argv[1]) == "-REQUIREPLAYERS") {
 		requireAllPlayers = true;
 		started = false;
+	}
+
+	sol::state lua;
+	lua.open_libraries(sol::lib::base, sol::lib::math, sol::lib::string, sol::lib::table);
+	lua.new_usertype<Player>("Player", sol::no_constructor,
+		"damage", &Player::TakeDamage,
+		"attackDamage", &Player::AttackDamage);
+
+	AbilityLibrary abilities(lua);
+	if (!abilities.LoadDirectory("assets/abilities"))
+		std::println("Warning: some abilities failed to load");
+
+	for (Player& p : players) {
+		const auto* ability = abilities.Find(champion::Get(p.GetChampionId()).basicAttack);
+		if (!ability) {
+			std::println("Missing basic attack for {}", champion::Get(p.GetChampionId()).name);
+			return EXIT_FAILURE;
+		}
+		p.SetBasicAttack(ability);
 	}
 
 
@@ -145,14 +180,28 @@ int main(int argc, char** argv)
 
 		for (std::uint8_t i = 0; i < playerCount; i++) {
 			if (players[i].Update(kTickSeconds, players)) {
-				const Player& p = players[i];
-				projectiles.push_back({
-					.position = { p.GetPosition().x, 1.2f, p.GetPosition().z },
-					.caster = i,
-					.target = p.GetAttackTarget(),
-					.speed = 15.0f,
-					.damage = 100
-					});
+				Player& p = players[i];
+				Player& target = players[p.GetAttackTarget()];
+				const AbilityDef& ability = *p.GetBasicAttack();
+
+				switch (ability.type) {
+				case AbilityType::TargetedProjectile:
+					projectiles.push_back({
+						.position = { p.GetPosition().x, 1.2f, p.GetPosition().z },
+						.caster = i,
+						.target = p.GetAttackTarget(),
+						.speed = ability.speed,
+						.ability = &ability,
+						});
+					broadCastProjectileSpawn(server, i, p.GetAttackTarget(), ability);
+					break;
+				case AbilityType::Targeted:
+					CallHook(ability, ability.onHit, &p, &target);
+					break;
+				default:
+					break;
+				}
+
 			}
 		}
 
@@ -167,9 +216,10 @@ int main(int argc, char** argv)
 			const float step = proj.speed * kTickSeconds;
 
 			if (distance <= step) {
-				if(target.IsAlive())
-					target.TakeDamage(proj.damage);
+				if (target.IsAlive())
+					CallHook(*proj.ability, proj.ability->onHit, &players[proj.caster], &target);
 				proj.done = true;
+				continue;
 			}
 
 			proj.position.x += dx / distance * step;
