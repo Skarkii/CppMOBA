@@ -96,6 +96,8 @@ private:
 	std::array<float, 4> m_cooldownLeft{};
 	std::array<float, 4> m_cooldownTotal{};
 
+	uint32_t m_gold{};
+
 	std::vector<ClientProjectile> m_projectiles;
 
 	std::unordered_map<std::string, Model> m_projectileModels;

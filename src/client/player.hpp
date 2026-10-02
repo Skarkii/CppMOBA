@@ -68,6 +68,8 @@ private:
 	float m_mana;
 	float m_maxMana;
 
+	uint32_t m_gold;
+
 	champion::Id m_champId;
 	bool m_self = false;
 	const Model* m_model = nullptr;

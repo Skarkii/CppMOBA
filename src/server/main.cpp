@@ -138,6 +138,10 @@ int main(int argc, char** argv)
 
 		broadcastState(server, tick);
 
+		if (tick % protocol::kTicksPerSecond == 0) {
+			broadcastPlayerGold(server);
+		}
+
 		next += kTick;
 		std::this_thread::sleep_until(next);
 	}

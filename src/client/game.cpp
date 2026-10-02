@@ -141,6 +141,7 @@ HudView Game::makeHudView() const {
 	view.stats = champion::GetStats(self.GetChampId());
 	view.mana = self.GetMana();
 	view.maxMana = self.GetMaxMana();
+	view.gold = m_gold;
 
 	const champion::Definition& def = champion::Get(self.GetChampId());
 	for (size_t i = 0; i < 4; i++) {
@@ -190,6 +191,7 @@ void Game::Run() {
 		const float dt = GetFrameTime();
 
 		updateNetwork();
+
 		updateProjectiles(dt);
 
 		for (float& cd : m_cooldownLeft)
@@ -407,11 +409,11 @@ void Game::onMessage(const std::vector<std::byte>& data) {
 				r.readString(names[i], 32);
 				r(teams[i]);
 			}
+
 			if (!r.done()) {
 				std::println("{} rejected: read {} of {} bytes", protocol::ToString(type), r.pos, data.size());
 				break; 
 			}
-
 
 			for (uint8_t i = 0; i < playerCount; i++) {
 				m_players[i].SetChampId(champIds[i]);
@@ -578,6 +580,38 @@ void Game::onMessage(const std::vector<std::byte>& data) {
 
 			m_cooldownLeft[slot] = cd;
 			m_cooldownTotal[slot] = cd;
+		}
+		break;
+	case protocol::MessageType::GoldUpdate:
+		{
+			uint32_t gold;
+			r(gold);
+			if (!r.done()) {
+				std::println("{} rejected: read {} of {} bytes", protocol::ToString(type), r.pos, data.size());
+				break;
+			}
+
+			m_gold = gold;
+		}
+		break;
+	case protocol::MessageType::PlayerKill:
+		{
+			uint8_t attacker{}, killedPlayer{};
+			r(attacker);
+			r(killedPlayer);
+			if (!r.done()) {
+				std::println("{} rejected: read {} of {} bytes", protocol::ToString(type), r.pos, data.size());
+				break;
+			}
+			if (attacker > m_playerCount || killedPlayer > m_playerCount)
+				break;
+
+			m_chat.AddSystemMessage(std::format("{} ({}) killed {} ({})", 
+				m_players[attacker].GetPlayerName(),
+				m_players[attacker].GetChampName(),
+				m_players[killedPlayer].GetPlayerName(),
+				m_players[killedPlayer].GetChampName()
+			));
 		}
 		break;
 	default:

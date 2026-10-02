@@ -86,6 +86,11 @@ public:
 	[[nodiscard]]
 	bool TryUseAbility(uint8_t slot);
 
+	[[nodiscard]]
+	float GetGold() const;
+
+	void AwardKill();
+
 private:
 	std::string m_name;
 	Vector3 m_pos = { 0 };
@@ -96,6 +101,8 @@ private:
 
 	float m_mana;
 	float m_maxMana;
+
+	float m_gold;
 
 	float m_rotation = 0.0f;
 	champion::Id m_champId;

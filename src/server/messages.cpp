@@ -75,3 +75,26 @@ void notifyCooldown(net::Server& server, Player& p, uint8_t slot, float cd) {
 	
 	server.send(p.GetPeer(), w.buffer, net::Channel::Reliable);
 }
+
+void sendPlayerGold(net::Server& server, Player& p) {
+	if (!p.IsConnected())
+		return;
+
+	net::Writer w;
+	w(protocol::MessageType::GoldUpdate);
+	w(static_cast<std::uint32_t>(p.GetGold()));
+	server.send(p.GetPeer(), w.buffer, net::Channel::Reliable);
+}
+
+void broadcastPlayerGold(net::Server& server) {
+	for (Player& p : players)
+		sendPlayerGold(server, p);
+}
+
+void broadcastKill(net::Server& server, Player& attacker, Player& deadPlayer) {
+	net::Writer w;
+	w(protocol::MessageType::PlayerKill);
+	w(slotOf(attacker));
+	w(slotOf(deadPlayer));
+	server.broadcast(w.buffer, net::Channel::Reliable);
+}

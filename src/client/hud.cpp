@@ -18,6 +18,18 @@ void Hud::SetScreenSize(const float width, const float height) {
 	m_screenH = height;
 }
 
+void Hud::drawGold(Rectangle r, std::uint32_t gold) const {
+	const float coinRadius = 9.0f;
+	const Vector2 coin = { r.x + coinRadius, r.y + r.height / 2 };
+	DrawCircleV(coin, coinRadius, GOLD);
+	DrawCircleLinesV(coin, coinRadius, ORANGE);
+
+	const char* text = TextFormat("%u", gold);
+	const float size = 20.0f;
+	const Vector2 textSize = MeasureTextEx(m_font, text, size, 1.0f);
+	DrawTextEx(m_font, text, { coin.x + coinRadius + 6.0f, r.y + (r.height - textSize.y) / 2 }, size, 1.0f, GOLD);
+}
+
 void Hud::Draw(const HudView& view) const {
 	const float panelW = 520.0f, panelH = 120.0f;
 	const Rectangle panel = { (m_screenW - panelW) / 2.0f, m_screenH - panelH - 10.0f, panelW, panelH };
@@ -36,6 +48,8 @@ void Hud::Draw(const HudView& view) const {
 		drawSlot({ x, panel.y + 10, slot, slot }, keys[i], view.slots[i]);
 		x += slot + gap;
 	}
+
+	drawGold({ x, panel.y + 10, panel.x + panel.width - x - 10, slot }, view.gold);
 
 	const float barX = panel.x + 130.0f;
 	const float barW = panel.width - 140.0f;

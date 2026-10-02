@@ -10,3 +10,8 @@ const uint8_t playerCount = 2;
 extern std::array<Player, playerCount> players;
 
 void updatePlayers(net::Server& server, const float kTickSeconds);
+void applyHit(net::Server& server, const AbilityDef& ability, Player& caster, Player& target);
+void playerKilled(net::Server& server, Player& attacker, Player& deadPlayer);
+
+[[nodiscard]]
+std::uint8_t slotOf(const Player& p);

@@ -19,6 +19,7 @@ struct HudView {
 	float mana, maxMana;
 	std::array<SlotView, 4> slots;
 	champion::Stats stats;
+	uint32_t gold;
 };
 
 class Hud {
@@ -31,6 +32,7 @@ private:
 	void drawBar(Rectangle r, float value, float max, Color c) const;
 	void drawSlot(Rectangle r, char key, const SlotView& s) const;
 	void drawStats(Rectangle r, const champion::Stats& s) const;
+	void drawGold(Rectangle r, std::uint32_t gold) const;
 	float m_screenW;
 	float m_screenH;
 	Font m_font;

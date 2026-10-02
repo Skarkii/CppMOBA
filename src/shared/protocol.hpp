@@ -13,8 +13,12 @@ namespace protocol
     constexpr std::uint16_t kVersion = 1;
     constexpr std::uint16_t kPort = 8000;
 
-	constexpr auto kTick = std::chrono::milliseconds(33); // ~30 tps
-	constexpr float kTickSeconds = std::chrono::duration<float>(kTick).count();
+    constexpr std::uint32_t kTicksPerSecond = 30;
+    constexpr auto kTick = std::chrono::microseconds(1000000 / kTicksPerSecond);
+    constexpr float kTickSeconds = 1.0f / static_cast<float>(kTicksPerSecond);
+
+	//constexpr auto kTick = std::chrono::milliseconds(33); // ~30 tps
+	//constexpr float kTickSeconds = std::chrono::duration<float>(kTick).count();
 
     constexpr uint16_t maximumNameLength = 24;
     constexpr uint16_t maximumChatLength = 50;
@@ -48,6 +52,8 @@ namespace protocol
         ProjectileEnd,
         SkillshotCast,
         CooldownStart,
+        GoldUpdate,
+        PlayerKill,
 
         Count,
     };
@@ -72,6 +78,8 @@ namespace protocol
     "ProjectileEnd",
     "SkillshotCast",
     "CooldownStart",
+    "GoldUpdate",
+    "PlayerKill",
     };
 
     constexpr std::string_view ToString(MessageType type) {

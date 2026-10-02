@@ -14,6 +14,27 @@ std::array<Player, playerCount> players{
 	*/
 };
 
+std::uint8_t slotOf(const Player& p) {
+	return static_cast<std::uint8_t>(&p - players.data());
+}
+
+void playerKilled(net::Server& server, Player& attacker, Player& deadPlayer) {
+	attacker.AwardKill();
+	sendPlayerGold(server, attacker);
+	broadcastKill(server, attacker, deadPlayer);
+}
+
+void applyHit(net::Server& server, const AbilityDef& ability, Player& caster, Player& target) {
+	if (!target.IsAlive())
+		return;
+
+	CallHook(ability, ability.onHit, &caster, &target);
+
+	if (!target.IsAlive()) {
+		playerKilled(server, caster, target);
+	}
+}
+
 void updatePlayers(net::Server& server, const float kTickSeconds) {
 	for (std::uint8_t i = 0; i < playerCount; i++) {
 		if (players[i].Update(kTickSeconds, players)) {
@@ -33,7 +54,7 @@ void updatePlayers(net::Server& server, const float kTickSeconds) {
 				broadCastProjectileSpawn(server, i, p.GetAttackTarget(), ability);
 				break;
 			case AbilityType::Targeted:
-				CallHook(ability, ability.onHit, &p, &target);
+				applyHit(server, ability, p, target);
 				break;
 			default:
 				break;

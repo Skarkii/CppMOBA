@@ -22,7 +22,8 @@ void updateProjectiles(net::Server& server, const float kTickSeconds) {
 
 		if (distance <= step) {
 			if (target.IsAlive())
-				CallHook(*proj.ability, proj.ability->onHit, &players[proj.caster], &target);
+				applyHit(server, *proj.ability, players[proj.caster], target);
+
 			proj.done = true;
 			continue;
 		}
@@ -53,7 +54,7 @@ void updateProjectiles(net::Server& server, const float kTickSeconds) {
 				continue;
 
 			s.alreadyHit->set(j);
-			CallHook(a, a.onHit, &caster, &enemy);
+			applyHit(server, a, caster, enemy);
 
 			if (!a.pierce) {
 				s.done = true;

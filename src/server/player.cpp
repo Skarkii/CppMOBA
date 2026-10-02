@@ -14,6 +14,8 @@ Player::Player(uint64_t token, std::string name, champion::Id champId, Team team
 
 	m_health = m_maxHealth = m_stats.maxHealth;
 	m_mana = m_maxMana = m_stats.maxMana;
+
+	m_gold = 500.f;
 }
 
 Player::~Player() {
@@ -103,6 +105,8 @@ bool Player::Update(const float dt, std::span<Player> players) {
 	for (float& cd : m_cooldowns)
 		cd = std::max(0.0f, cd - dt);
 
+	m_gold += 5.f / static_cast<float>(protocol::kTicksPerSecond);
+
 	switch (m_order) {
 	case Order::Idle:
 		break;
@@ -189,4 +193,12 @@ bool Player::TryUseAbility(uint8_t slot) {
 	m_cooldowns[slot] = a->cooldown;
 	m_mana -= a->manaCost;
 	return true;
+}
+
+float Player::GetGold() const {
+	return m_gold;
+}
+
+void Player::AwardKill() {
+	m_gold += 300;
 }
