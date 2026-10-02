@@ -6,6 +6,8 @@
 
 #include "champions.hpp"
 
+enum class Team : uint8_t { Blue, Red } ;
+
 class Player {
 public:
 	Player();
@@ -48,11 +50,17 @@ public:
 	[[nodiscard]]
 	std::string_view GetPlayerName() const;
 
+	void SetTeam(const Team team);
+
+	[[nodiscard]]
+	Team GetTeam() const;
+
 private:
 	std::string m_name;
 	Vector3 m_position;
 	float m_rotation;
 	Vector3 m_scale;
+	Team m_team;
 
 	float m_health;
 	float m_maxHealth;

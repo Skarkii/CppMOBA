@@ -119,6 +119,14 @@ std::string_view Player::GetPlayerName() const {
 	return m_name;
 }
 
+void Player::SetTeam(const Team team) {
+	m_team = team;
+}
+
+Team Player::GetTeam() const {
+	return m_team;
+}
+
 float Player::GetHealth() const {
 	return m_health;
 }

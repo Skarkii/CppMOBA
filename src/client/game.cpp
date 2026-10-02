@@ -400,10 +400,12 @@ void Game::onMessage(const std::vector<std::byte>& data) {
 
 			std::array<champion::Id, 10> champIds{};
 			std::array<std::string, 10> names;
+			std::array<Team, 10> teams;
 
 			for (uint8_t i = 0; i < playerCount; i++) {
 				r(champIds[i]);
 				r.readString(names[i], 32);
+				r(teams[i]);
 			}
 			if (!r.done()) {
 				std::println("{} rejected: read {} of {} bytes", protocol::ToString(type), r.pos, data.size());
@@ -414,6 +416,7 @@ void Game::onMessage(const std::vector<std::byte>& data) {
 			for (uint8_t i = 0; i < playerCount; i++) {
 				m_players[i].SetChampId(champIds[i]);
 				m_players[i].SetPlayerName(names[i]);
+				m_players[i].SetTeam(teams[i]);
 			}
 			m_players[m_playerId].SetSelf();
 			m_playerCount = playerCount;

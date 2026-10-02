@@ -94,7 +94,11 @@ set(SHARED_SOURCES
 
 set(SERVER_SOURCES
     src/server/main.cpp
+    src/server/handlers.cpp
+    src/server/match.cpp
+    src/server/messages.cpp
     src/server/player.cpp
+    src/server/projectiles.cpp
 )
 
 set(CLIENT_SOURCES
