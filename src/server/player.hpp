@@ -6,6 +6,7 @@
 #include "champions.hpp"
 #include <span>
 #include "ability.hpp"
+#include "mapgrid.hpp"
 
 struct Vector3 {
 	float x;
@@ -51,7 +52,7 @@ public:
 	bool IsConnected() const;
 
 	[[nodiscard]]
-	bool Update(const float dt, std::span<Player> players);
+	bool Update(const float dt, std::span<Player> players, MapGrid& mapGrid);
 
 	[[nodiscard]]
 	Team GetTeam() const;
@@ -119,7 +120,7 @@ private:
 
 	uint8_t m_attackTarget;
 
-	bool moveTo(const Vector3 goal, const float dt);
+	bool moveTo(const Vector3 goal, const float dt, MapGrid& mapGrid);
 
 	[[nodiscard]]
 	bool inRangeOfPlayer(const Player& other) const;

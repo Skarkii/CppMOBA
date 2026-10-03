@@ -22,7 +22,7 @@ Player::~Player() {
 
 }
 
-bool Player::moveTo(const Vector3 goal, const float dt) {	
+bool Player::moveTo(const Vector3 goal, const float dt, MapGrid& mapGrid) {	
 	const float dx = goal.x - m_pos.x;
 	const float dz = goal.z - m_pos.z;
 	const float distance = std::sqrt(dx * dx + dz * dz);
@@ -35,8 +35,12 @@ bool Player::moveTo(const Vector3 goal, const float dt) {
 		return true;
 	}
 
-	m_pos.x += dx / distance * step;
-	m_pos.z += dz / distance * step;
+	Vector3 newPos = { m_pos.x + dx / distance * step, 0, m_pos.z + dz / distance * step };
+
+	if (!mapGrid.IsWalkable(static_cast<int>(newPos.x), static_cast<int>(newPos.z)))
+		return true;
+
+	m_pos = newPos;
 
 	return false;
 }
@@ -93,7 +97,7 @@ bool Player::inRangeOfPlayer(const Player& other) const {
 	return (dx * dx + dz * dz) <= (m_stats.attackRange * m_stats.attackRange);
 }
 
-bool Player::Update(const float dt, std::span<Player> players) {
+bool Player::Update(const float dt, std::span<Player> players, MapGrid& mapGrid) {
 	bool attacked = false;
 	m_attackCooldown = std::max(0.0f, m_attackCooldown - dt);
 
@@ -111,7 +115,7 @@ bool Player::Update(const float dt, std::span<Player> players) {
 	case Order::Idle:
 		break;
 	case Order::MoveTo:
-		if (moveTo(m_pos_goal, dt))
+		if (moveTo(m_pos_goal, dt, mapGrid))
 			m_order = Order::Idle;
 		break;
 	case Order::Attack:
@@ -120,7 +124,7 @@ bool Player::Update(const float dt, std::span<Player> players) {
 			break;
 		}
 		if (!inRangeOfPlayer(players[m_attackTarget])) {
-			moveTo(players[m_attackTarget].GetPosition(), dt);
+			moveTo(players[m_attackTarget].GetPosition(), dt, mapGrid);
 		}
 		else if(m_attackCooldown == 0.0f) {
 			m_attackCooldown = m_basicAttack->cooldown;

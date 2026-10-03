@@ -91,6 +91,10 @@ void Game::loadModels() {
 void Game::Prepare() {
 	loadModels();
 	loadAbilities();
+	m_map = LoadModel("assets/maps/threelane/map.glb");
+	if (m_map.meshCount == 0)
+		std::println("Warning: failed to load map model");
+
 	m_hud.Load();
 }
 
@@ -256,7 +260,7 @@ void Game::Run() {
 		}
 
 		BeginDrawing();
-		ClearBackground(RAYWHITE);
+		ClearBackground({20, 22, 26, 255});
 		const Vector3 playerPos = m_players[m_playerId].GetPosition();
 		const Vector3 offset = { 0.0f, m_zoom, 6.0f };
 
@@ -267,7 +271,8 @@ void Game::Run() {
 
 		BeginMode3D(m_camera);	
 
-		DrawGrid(40, 1.0f);
+		DrawModel(m_map, { 0.0f, 0.0f, 0.0f }, 1.0f, WHITE);
+
 		if (!m_menu.IsOpen()) {
 			if (IsKeyDown(KEY_X)) {
 				const Vector3 pos = m_players[m_playerId].GetPosition();

@@ -22,6 +22,8 @@
 #include "messages.hpp"
 #include "projectiles.hpp"
 
+#include "mapgrid.hpp"
+
 int main(int argc, char** argv)
 {
 	net::Library lib;
@@ -84,6 +86,17 @@ int main(int argc, char** argv)
 		}
 	}
 
+	constexpr Vector3 SpawnPoint = { 11.0f, 0.0f, 149.0f };
+
+	for (Player& p : players) {
+		p.SetForcePosition(SpawnPoint);
+	}
+
+	MapGrid mapGrid;
+	if (!mapGrid.Load("assets/maps/threelane/map.grid")) {
+		std::println("Failed to load mapgrid");
+		return EXIT_FAILURE;
+	}
 
 	using clock = std::chrono::steady_clock;
 
@@ -133,7 +146,7 @@ int main(int argc, char** argv)
 		}
 
 
-		updatePlayers(server, kTickSeconds);
+		updatePlayers(server, kTickSeconds, mapGrid);
 		updateProjectiles(server, kTickSeconds);
 
 		broadcastState(server, tick);

@@ -43,6 +43,7 @@ public:
 	void Run();
 private:
 	uint64_t m_token;
+	Model m_map;
 	const std::string m_hostServerName = "127.0.0.1";
 	const uint16_t m_hostServerPort = 8000;
 	bool m_running = true;

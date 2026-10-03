@@ -90,6 +90,7 @@ set(SHARED_SOURCES
     src/shared/protocol.hpp
     src/shared/champions.hpp
     src/shared/ability.cpp
+    src/shared/mapgrid.hpp
 )
 
 set(SERVER_SOURCES

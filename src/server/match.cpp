@@ -35,9 +35,9 @@ void applyHit(net::Server& server, const AbilityDef& ability, Player& caster, Pl
 	}
 }
 
-void updatePlayers(net::Server& server, const float kTickSeconds) {
+void updatePlayers(net::Server& server, const float kTickSeconds, MapGrid& mapGrid) {
 	for (std::uint8_t i = 0; i < playerCount; i++) {
-		if (players[i].Update(kTickSeconds, players)) {
+		if (players[i].Update(kTickSeconds, players, mapGrid)) {
 			Player& p = players[i];
 			Player& target = players[p.GetAttackTarget()];
 			const AbilityDef& ability = *p.GetBasicAttack();
